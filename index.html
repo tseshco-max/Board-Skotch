@@ -64,7 +64,6 @@
   .hbtn:hover{background:rgba(41,35,22,.07);}
   .hbtn:disabled{opacity:.3; pointer-events:none;}
   .hbtn.danger:hover{background:rgba(179,54,26,.1); color:var(--danger);}
-  /* кнопка «Доски»: более сильный селектор, чтобы .hbtn не сжимал её до 34px */
   .hbtn.boards-btn{width:auto; padding:0 10px; gap:7px; font-weight:600; font-size:13px; flex:none;}
   #btnMenu{display:none;}
 
@@ -115,10 +114,13 @@
   #viewport.panning{cursor:grabbing;}
   #viewport[data-tool="connect"]{cursor:crosshair;}
   #viewport[data-tool="eraser"]{cursor:crosshair;}
+  #viewport[data-tool="pen"]{cursor:crosshair;}
   #viewport.spacepan{cursor:grabbing;}
   #world{position:absolute; left:0; top:0; transform-origin:0 0;}
   #linksvg{position:absolute; left:0; top:0; width:20px; height:20px; overflow:visible;}
   #cardsG{position:absolute; left:0; top:0;}
+  #pensvg{position:absolute; left:0; top:0; width:20px; height:20px; overflow:visible; pointer-events:none;}
+  .pstroke{fill:none; stroke-linecap:round; stroke-linejoin:round;}
 
   /* стрелки */
   .link-hit{fill:none; stroke:rgba(0,0,0,0); stroke-width:16; cursor:pointer;}
@@ -165,6 +167,11 @@
   }
   .text-content:empty::before{content:attr(data-ph); color:rgba(41,35,22,.35);}
 
+  /* белая доска (рамка) */
+  .boardframe{background:#fff; border-radius:10px;
+    border:1px solid rgba(41,35,22,.12);
+    box-shadow:0 1px 2px rgba(41,35,22,.07), 0 14px 34px -14px rgba(41,35,22,.2);}
+
   /* фото */
   .photo{width:260px; background:var(--panel2); padding:9px 9px 12px; border-radius:4px;
     transform:rotate(var(--tilt,0deg));
@@ -172,12 +179,12 @@
   .img-frame{border-radius:2px; overflow:hidden; background:rgba(41,35,22,.06);}
   .img-frame img{display:block; width:100%; height:auto; pointer-events:none;
     -webkit-user-drag:none; user-select:none;}
-  .img-handle{position:absolute; right:-9px; bottom:-9px; width:24px; height:24px; border-radius:50%;
+  .rz-handle{position:absolute; right:-9px; bottom:-9px; width:24px; height:24px; border-radius:50%;
     background:var(--panel2); border:1.5px solid var(--accent); color:var(--accent);
     box-shadow:0 1px 5px rgba(41,35,22,.25); display:none; align-items:center; justify-content:center;
     cursor:nwse-resize; z-index:4; touch-action:none;}
-  .img-handle .ic{width:11px; height:11px; stroke-width:2.6;}
-  .card.selected .img-handle{display:flex;}
+  .rz-handle .ic{width:11px; height:11px; stroke-width:2.6;}
+  .card.selected .rz-handle{display:flex;}
 
   .todo{
     width:256px; background:var(--panel2); border:1px solid var(--line); border-radius:11px;
@@ -237,10 +244,15 @@
     padding:10px 12px; display:flex; flex-direction:column; gap:9px; max-width:calc(100vw - 16px);}
   #props[hidden]{display:none;}
   .props-head{font-size:10.5px; font-weight:600; letter-spacing:.14em; text-transform:uppercase; color:var(--muted);}
+  .props-note{font-size:11.5px; line-height:1.45; color:var(--muted); max-width:250px;}
   .swatches{display:flex; gap:7px;}
   .swatch{width:26px;height:26px; border-radius:8px; border:1px solid rgba(41,35,22,.15); transition:transform .12s;}
   .swatch:hover{transform:scale(1.12);}
   .swatch.active{outline:2px solid var(--ink); outline-offset:2px;}
+  .penw{width:34px;height:34px; border-radius:9px; display:inline-flex; align-items:center; justify-content:center;}
+  .penw:hover{background:rgba(41,35,22,.07);}
+  .penw i{display:block; border-radius:50%; background:currentColor;}
+  .penw.active{outline:2px solid var(--ink); outline-offset:2px;}
   .props-actions{display:flex; gap:4px; flex-wrap:wrap;}
   .pbtn{display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:500;
     padding:7px 9px; border-radius:8px;}
@@ -323,14 +335,19 @@
     .hbtn.boards-btn{padding:0 8px;}
     #boardPanel{left:8px; top:58px;}
     #tools{left:50%; top:auto; bottom:12px; bottom:calc(12px + env(safe-area-inset-bottom));
-      transform:translateX(-50%); flex-direction:row; padding:4px;}
-    .tbtn{width:44px;height:44px;}
+      transform:translateX(-50%); flex-direction:row; flex-wrap:wrap; justify-content:center;
+      padding:4px; max-width:calc(100vw - 12px);}
+    .tbtn{width:38px;height:38px;}
     #zoomui{right:10px; bottom:80px; bottom:calc(80px + env(safe-area-inset-bottom));}
     #props{top:auto; bottom:84px; bottom:calc(84px + env(safe-area-inset-bottom)); left:50%; transform:translateX(-50%);}
     #connectHint{top:60px;}
     .pbtn span{display:none;}
     .pbtn{padding:8px;}
     .modal-input, #linkLabel{font-size:16px;}
+  }
+  @media (max-width:400px){
+    .tbtn{width:34px;height:34px;}
+    #tools{gap:2px; padding:3px;}
   }
 </style>
 </head>
@@ -345,6 +362,7 @@
   <symbol id="i-todo" viewBox="0 0 24 24"><rect x="4.5" y="4.5" width="15" height="15" rx="3.5"/><path d="M8.6 12.2l2.4 2.4 4.6-5"/></symbol>
   <symbol id="i-text" viewBox="0 0 24 24"><path d="M5 7V5h14v2"/><path d="M12 5v14"/><path d="M9.5 19h5"/></symbol>
   <symbol id="i-image" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="2.5"/><circle cx="9.2" cy="10" r="1.7"/><path d="M4.5 16.5l4.4-4.2 3.4 3.2 3-2.8 4.2 3.8"/></symbol>
+  <symbol id="i-frame" viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="12" rx="1.2"/><path d="M8.5 6V4.2M15.5 6V4.2M8.5 18v1.8M15.5 18v1.8"/></symbol>
   <symbol id="i-connect" viewBox="0 0 24 24"><path d="M4 19.2c7.4 0 4.6-10.2 11-10.2h4.4"/><path d="M15.8 5.4 19.8 9l-4 3.6"/></symbol>
   <symbol id="i-eraser" viewBox="0 0 24 24"><path d="M13.6 4.6a2 2 0 0 1 2.8 0l3 3a2 2 0 0 1 0 2.8l-8.2 8.2H7.4l-3-3a2 2 0 0 1 0-2.8z"/><path d="M9 9.2l5.8 5.8"/><path d="M5 20h14"/></symbol>
   <symbol id="i-undo" viewBox="0 0 24 24"><path d="M8.6 5.3 4.2 9.7l4.4 4.4"/><path d="M4.2 9.7h9.6a5.8 5.8 0 0 1 5.8 5.8v1"/></symbol>
@@ -413,6 +431,7 @@
       <path id="tmpLine" d="" visibility="hidden" marker-end="url(#mAcc)"/>
     </svg>
     <div id="cardsG"></div>
+    <svg id="pensvg" xmlns="http://www.w3.org/2000/svg"><g id="strokesG"></g></svg>
   </div>
   <div id="emptyHint" hidden>
     <div>
@@ -427,12 +446,14 @@
 
 <div id="tools">
   <button class="tbtn active" data-tool="select" title="Выбор и перемещение"><svg class="ic"><use href="#i-cursor"/></svg></button>
+  <button class="tbtn" data-tool="pen" title="Кисть — рисовать от руки"><svg class="ic"><use href="#i-pencil"/></svg></button>
   <button class="tbtn" data-tool="note" title="Стикер"><svg class="ic"><use href="#i-note"/></svg></button>
   <button class="tbtn" data-tool="text" title="Просто текст"><svg class="ic"><use href="#i-text"/></svg></button>
   <button class="tbtn" data-tool="todo" title="Список дел"><svg class="ic"><use href="#i-todo"/></svg></button>
   <button class="tbtn" data-tool="photo" title="Прикрепить фото"><svg class="ic"><use href="#i-image"/></svg></button>
+  <button class="tbtn" data-tool="board" title="Белая доска — фон произвольного размера"><svg class="ic"><use href="#i-frame"/></svg></button>
   <button class="tbtn" data-tool="connect" title="Стрелка между карточками"><svg class="ic"><use href="#i-connect"/></svg></button>
-  <button class="tbtn" data-tool="eraser" title="Ластик — удалить по клику"><svg class="ic"><use href="#i-eraser"/></svg></button>
+  <button class="tbtn" data-tool="eraser" title="Ластик — стирает линии, удаляет карточки"><svg class="ic"><use href="#i-eraser"/></svg></button>
 </div>
 
 <div id="zoomui">
@@ -488,11 +509,13 @@ const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const num = (v, d) => (typeof v === 'number' && isFinite(v)) ? v : d;
 const randomTilt = () => Math.round((Math.random() * 2 - 1) * 140) / 100;
+const r1 = n => Math.round(n * 10) / 10;
 
 /* ================= Хранилище досок ================= */
 const KEY = 'scotch.board.v1';          // legacy (одиночная доска из старой версии)
 const IDX = 'scotch.idx.v1';            // список досок
 const ACT = 'scotch.act.v1';            // активная доска
+const PENKEY = 'scotch.pen.v1';         // настройки кисти
 const bkey = id => 'scotch.b.' + id;
 
 const GRID = 26;
@@ -510,6 +533,8 @@ const TEXT_COLORS = [
   { id: 'sea',    c: '#2b5d8a' },
   { id: 'plum',   c: '#7a4a78' },
 ];
+const PEN_WIDTHS = [2, 5, 10];
+const ACCENT = '#d84e1f';
 const colorOf = id => (PALETTE.find(p => p.id === id) || PALETTE[0]).c;
 const textColorOf = id => (TEXT_COLORS.find(p => p.id === id) || TEXT_COLORS[0]).c;
 
@@ -523,8 +548,8 @@ const DEMO_PHOTO = 'data:image/svg+xml;utf8,' + encodeURIComponent(
   "</svg>");
 
 /* ================= Состояние ================= */
-const state = { name: '', cards: [], links: [], view: { x: 0, y: 0, s: 1 } };
-const ui = { tool: 'select', sel: null, pendingConnect: null, replaceTarget: null };
+const state = { name: '', cards: [], links: [], strokes: [], view: { x: 0, y: 0, s: 1 } };
+const ui = { tool: 'select', sel: null, pendingConnect: null, replaceTarget: null, penColor: '#292316', penW: 5 };
 let boardId = null, idx = [], quotaWarned = false;
 let pendingFit = false; // true = после сборки нужно подогнать вид под содержимое
 
@@ -536,24 +561,28 @@ function ensureView() {
 }
 
 const viewport = $('#viewport'), world = $('#world'), cardsG = $('#cardsG');
-const linksG = $('#linksG'), tmpLine = $('#tmpLine');
+const linksG = $('#linksG'), tmpLine = $('#tmpLine'), strokesG = $('#strokesG');
 const propsEl = $('#props'), connectHint = $('#connectHint'), emptyHint = $('#emptyHint');
 
-const cardById = new Map(), elById = new Map(), cardH = new Map(), linkEls = new Map();
+const cardById = new Map(), elById = new Map(), cardH = new Map(), linkEls = new Map(), strokeEls = new Map();
 
 const getCard = id => cardById.get(id);
 const getEl = id => elById.get(id);
+const strokeById = id => { for (const s of state.strokes) if (s.id === id) return s; return null; };
 const rectOf = c => ({
   x: c.x, y: c.y, w: c.w,
-  h: c.type === 'image' ? Math.round(c.w * (c.aspect || 0.75)) : (cardH.get(c.id) || 80)
+  h: c.type === 'image' ? Math.round(c.w * (c.aspect || 0.75))
+   : c.type === 'board' ? (c.h || 600)
+   : (cardH.get(c.id) || 80)
 });
 
 function saveIndex() { try { localStorage.setItem(IDX, JSON.stringify(idx)); } catch (e) {} }
 function setActive() { try { localStorage.setItem(ACT, boardId); } catch (e) {} }
+function persistPen() { try { localStorage.setItem(PENKEY, JSON.stringify({ color: ui.penColor, w: ui.penW })); } catch (e) {} }
 
 function saveNow() {
   try {
-    localStorage.setItem(bkey(boardId), JSON.stringify({ name: state.name, cards: state.cards, links: state.links, view: state.view }));
+    localStorage.setItem(bkey(boardId), JSON.stringify({ name: state.name, cards: state.cards, links: state.links, strokes: state.strokes, view: state.view }));
     const it = idx.find(b => b.id === boardId);
     if (it) { it.name = state.name || it.name; it.ts = Date.now(); saveIndex(); }
     const el = $('#savedState');
@@ -573,7 +602,7 @@ function scheduleSave() { clearTimeout(saveTimer); saveTimer = setTimeout(saveNo
 /* ================= Санитизация данных ================= */
 function sanitizeData(raw) {
   raw = raw || {};
-  const types = ['note', 'todo', 'text', 'image'];
+  const types = ['note', 'todo', 'text', 'image', 'board'];
   const cards = (Array.isArray(raw.cards) ? raw.cards : []).filter(c => c && types.indexOf(c.type) >= 0).map(c => {
     const t = c.type;
     const base = { id: c.id || uid(), type: t, x: Math.round(+c.x || 0), y: Math.round(+c.y || 0) };
@@ -583,6 +612,7 @@ function sanitizeData(raw) {
       if (!(typeof c.src === 'string' && c.src.indexOf('data:image') === 0)) return null;
       return Object.assign(base, { w: clamp(Math.round(+c.w || 260), 90, 1400), aspect: num(+c.aspect, 0) > 0 ? +c.aspect : 0.75, tilt: num(c.tilt, randomTilt() * 0.7), src: c.src });
     }
+    if (t === 'board') return Object.assign(base, { w: clamp(Math.round(+c.w || 900), 160, 4000), h: clamp(Math.round(+c.h || 600), 120, 4000), tilt: 0 });
     return Object.assign(base, {
       w: 256, color: PALETTE.some(p => p.id === c.color) ? c.color : 'sky', tilt: num(c.tilt, randomTilt()),
       title: typeof c.title === 'string' ? c.title : '',
@@ -593,7 +623,17 @@ function sanitizeData(raw) {
   const links = (Array.isArray(raw.links) ? raw.links : [])
     .filter(l => l && ids.has(l.from) && ids.has(l.to))
     .map(l => ({ id: l.id || uid(), from: l.from, to: l.to, label: String(l.label || ''), dash: !!l.dash }));
-  return { cards, links };
+  const strokes = (Array.isArray(raw.strokes) ? raw.strokes : []).filter(s => s && Array.isArray(s.pts) && s.pts.length >= 2).map(s => {
+    let pts = s.pts.filter(n => typeof n === 'number' && isFinite(n)).map(n => r1(n));
+    if (pts.length % 2) pts = pts.slice(0, -1);
+    return {
+      id: s.id || uid(),
+      pts: pts,
+      color: typeof s.color === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(s.color) ? s.color : '#292316',
+      w: clamp(Math.round(+s.w || 3), 1, 40)
+    };
+  }).filter(s => s.pts.length >= 2);
+  return { cards: cards, links: links, strokes: strokes };
 }
 
 /* ================= Вид (панорама/зум) ================= */
@@ -618,7 +658,6 @@ function zoomAt(cx, cy, factor) {
   v.s = s2;
   applyView(); scheduleSave();
 }
-/* применить сохранённый вид или подогнать доску под содержимое */
 function applyOrFit() {
   if (pendingFit) { pendingFit = false; requestAnimationFrame(fitAll); }
   else applyView();
@@ -627,14 +666,22 @@ function measureSync() { for (const c of state.cards) { const el = getEl(c.id); 
 function fitAll() {
   ensureView();
   const r = viewport.getBoundingClientRect();
-  if (!state.cards.length) { state.view = { x: r.width / 2, y: r.height / 2, s: 1 }; applyView(); return; }
+  if (!state.cards.length && !state.strokes.length) { state.view = { x: r.width / 2, y: r.height / 2, s: 1 }; applyView(); return; }
   measureSync();
   let minx = 1e9, miny = 1e9, maxx = -1e9, maxy = -1e9;
   for (const c of state.cards) {
     minx = Math.min(minx, c.x); miny = Math.min(miny, c.y);
     maxx = Math.max(maxx, c.x + c.w); maxy = Math.max(maxy, c.y + rectOf(c).h);
   }
-  const pad = 70, bw = maxx - minx, bh = maxy - miny;
+  for (const s of state.strokes) {
+    for (let i = 0; i + 1 < s.pts.length; i += 2) {
+      if (s.pts[i] < minx) minx = s.pts[i];
+      if (s.pts[i] > maxx) maxx = s.pts[i];
+      if (s.pts[i + 1] < miny) miny = s.pts[i + 1];
+      if (s.pts[i + 1] > maxy) maxy = s.pts[i + 1];
+    }
+  }
+  const pad = 70, bw = Math.max(1, maxx - minx), bh = Math.max(1, maxy - miny);
   const s = clamp(Math.min((r.width - pad * 2) / bw, (r.height - pad * 2) / bh), 0.15, 1.25);
   state.view.s = s;
   state.view.x = (r.width - bw * s) / 2 - minx * s;
@@ -644,7 +691,7 @@ function fitAll() {
 
 /* ================= История ================= */
 let hist = [], hi = -1;
-const snapshot = () => JSON.stringify({ cards: state.cards, links: state.links });
+const snapshot = () => JSON.stringify({ cards: state.cards, links: state.links, strokes: state.strokes });
 function pushHistory() {
   const snap = snapshot();
   if (hist[hi] === snap) return;
@@ -656,7 +703,7 @@ function pushHistory() {
 }
 function restore(snap) {
   const d = JSON.parse(snap);
-  state.cards = d.cards; state.links = d.links;
+  state.cards = d.cards; state.links = d.links; state.strokes = d.strokes || [];
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
   ui.sel = null;
   rebuildAll(); renderProps(); scheduleSave();
@@ -672,7 +719,15 @@ function makeCard(type, x, y) {
   if (type === 'note') return Object.assign(base, { w: 216, color: PALETTE[Math.floor(Math.random() * PALETTE.length)].id, tilt: randomTilt(), text: '' });
   if (type === 'text') return Object.assign(base, { w: 240, color: 'ink', tilt: 0, text: '' });
   if (type === 'image') return Object.assign(base, { w: 260, aspect: 0.75, tilt: randomTilt() * 0.7, src: '' });
+  if (type === 'board') return Object.assign(base, { w: 900, h: 600, tilt: 0 });
   return Object.assign(base, { w: 256, color: PALETTE[Math.floor(Math.random() * PALETTE.length)].id, tilt: randomTilt(), title: '', items: [] });
+}
+function makeHandle(title) {
+  const h = document.createElement('button');
+  h.className = 'rz-handle'; h.dataset.nodrag = '';
+  h.setAttribute('aria-label', title); h.title = title;
+  h.innerHTML = '<svg class="ic"><use href="#i-resize"/></svg>';
+  return h;
 }
 function attachCard(card) {
   cardById.set(card.id, card);
@@ -711,11 +766,11 @@ function attachCard(card) {
     img.src = card.src; img.draggable = false; img.alt = 'Фото';
     frame.appendChild(img);
     el.appendChild(frame);
-    const h = document.createElement('button');
-    h.className = 'img-handle'; h.dataset.nodrag = '';
-    h.setAttribute('aria-label', 'Изменить размер'); h.title = 'Потяните, чтобы изменить размер';
-    h.innerHTML = '<svg class="ic"><use href="#i-resize"/></svg>';
-    el.appendChild(h);
+    el.appendChild(makeHandle('Потяните, чтобы изменить размер'));
+  } else if (card.type === 'board') {
+    el.style.width = card.w + 'px';
+    el.style.height = card.h + 'px';
+    el.appendChild(makeHandle('Потяните за угол, чтобы изменить размер'));
   } else {
     el.style.setProperty('--c', colorOf(card.color));
     const head = document.createElement('div');
@@ -731,6 +786,9 @@ function attachCard(card) {
   cardsG.appendChild(el);
   requestAnimationFrame(() => { cardH.set(card.id, el.offsetHeight); });
   return el;
+}
+function applyCardOrder() {
+  for (const c of state.cards) { const el = getEl(c.id); if (el) cardsG.appendChild(el); }
 }
 function renderTodoItems(card) {
   const el = getEl(card.id); if (!el) return;
@@ -756,12 +814,18 @@ function updateTodoMeta(card) {
   el.querySelector('.todo-count').textContent = total ? (done + '/' + total) : '';
   el.querySelector('.todo-bar i').style.width = total ? (done / total * 100) + '%' : '0';
 }
-function updateEmptyHint() { emptyHint.hidden = state.cards.length > 0; }
+function updateEmptyHint() { emptyHint.hidden = state.cards.length > 0 || state.strokes.length > 0; }
 
-function addCard(card, editRightAway) {
+function addCard(card, editRightAway, atBottom) {
   pushHistory();
-  state.cards.push(card);
-  attachCard(card);
+  if (atBottom) {
+    state.cards.unshift(card);
+    const el = attachCard(card);
+    cardsG.insertBefore(el, cardsG.firstChild);
+  } else {
+    state.cards.push(card);
+    attachCard(card);
+  }
   selectCard(card.id);
   updateEmptyHint();
   saveNow();
@@ -786,9 +850,9 @@ function deleteCard(id) {
 function duplicateCard(id) {
   const c = getCard(id); if (!c) return;
   const copy = JSON.parse(JSON.stringify(c));
-  copy.id = uid(); copy.x += 28; copy.y += 28; copy.tilt = randomTilt();
+  copy.id = uid(); copy.x += 28; copy.y += 28; copy.tilt = c.type === 'board' ? 0 : randomTilt();
   if (copy.items) copy.items = copy.items.map(it => Object.assign({}, it, { id: uid() }));
-  addCard(copy, false);
+  addCard(copy, false, c.type === 'board');
 }
 
 /* ================= Редактирование текста ================= */
@@ -979,11 +1043,78 @@ function hitTestCard(wx, wy) {
   return null;
 }
 
+/* ================= Рисование (кисть) ================= */
+function strokeD(p) {
+  const n = p.length;
+  if (n < 4) {
+    const x = p[0], y = p[1];
+    return 'M' + r1(x) + ' ' + r1(y) + 'L' + r1(x + 0.01) + ' ' + r1(y);
+  }
+  let d = 'M' + r1(p[0]) + ' ' + r1(p[1]);
+  for (let i = 2; i < n - 2; i += 2) {
+    const mx = r1((p[i] + p[i + 2]) / 2), my = r1((p[i + 1] + p[i + 3]) / 2);
+    d += 'Q' + r1(p[i]) + ' ' + r1(p[i + 1]) + ' ' + mx + ' ' + my;
+  }
+  d += 'L' + r1(p[n - 2]) + ' ' + r1(p[n - 1]);
+  return d;
+}
+function ensureStrokeEl(s) {
+  if (strokeEls.has(s.id)) return strokeEls.get(s.id);
+  const p = document.createElementNS(NS, 'path');
+  p.setAttribute('class', 'pstroke');
+  p.setAttribute('d', strokeD(s.pts));
+  p.setAttribute('stroke', s.color);
+  p.setAttribute('stroke-width', s.w);
+  strokesG.appendChild(p);
+  strokeEls.set(s.id, p);
+  return p;
+}
+function syncStrokes() {
+  const alive = new Set(state.strokes.map(s => s.id));
+  for (const [id, p] of strokeEls) if (!alive.has(id)) { p.remove(); strokeEls.delete(id); }
+  for (const s of state.strokes) ensureStrokeEl(s);
+}
+function removeStroke(id) {
+  state.strokes = state.strokes.filter(s => s.id !== id);
+  const p = strokeEls.get(id);
+  if (p) { p.remove(); strokeEls.delete(id); }
+}
+function distSeg(px, py, x1, y1, x2, y2) {
+  const dx = x2 - x1, dy = y2 - y1;
+  const l2 = dx * dx + dy * dy;
+  let t = l2 ? ((px - x1) * dx + (py - y1) * dy) / l2 : 0;
+  t = clamp(t, 0, 1);
+  return Math.hypot(px - (x1 + dx * t), py - (y1 + dy * t));
+}
+function hitStroke(wx, wy, th) {
+  for (let i = state.strokes.length - 1; i >= 0; i--) {
+    const s = state.strokes[i], p = s.pts, lim = th + s.w / 2;
+    if (p.length === 2) {
+      if (Math.hypot(wx - p[0], wy - p[1]) <= lim) return s;
+      continue;
+    }
+    for (let j = 0; j + 3 < p.length; j += 2) {
+      if (distSeg(wx, wy, p[j], p[j + 1], p[j + 2], p[j + 3]) <= lim) return s;
+    }
+  }
+  return null;
+}
+function deleteStroke(id) {
+  pushHistory();
+  removeStroke(id);
+  if (ui.sel && ui.sel.id === id) deselect();
+  updateEmptyHint(); saveNow();
+}
+
 /* ================= Выделение и панель свойств ================= */
 function clearSelVisual() {
   if (!ui.sel) return;
   if (ui.sel.kind === 'card') { const el = getEl(ui.sel.id); if (el) el.classList.remove('selected'); }
-  else { const g = linkEls.get(ui.sel.id); if (g) { g.classList.remove('selected'); g.children[1].setAttribute('marker-end', 'url(#mInk)'); } }
+  else if (ui.sel.kind === 'link') { const g = linkEls.get(ui.sel.id); if (g) { g.classList.remove('selected'); g.children[1].setAttribute('marker-end', 'url(#mInk)'); } }
+  else if (ui.sel.kind === 'stroke') {
+    const p = strokeEls.get(ui.sel.id);
+    if (p) { const s = strokeById(ui.sel.id); p.setAttribute('stroke', s ? s.color : '#292316'); }
+  }
 }
 function selectCard(id) {
   clearSelVisual();
@@ -998,27 +1129,65 @@ function selectLink(id) {
   if (g) { g.classList.add('selected'); g.children[1].setAttribute('marker-end', 'url(#mAcc)'); }
   renderProps();
 }
+function selectStroke(id) {
+  clearSelVisual();
+  ui.sel = { kind: 'stroke', id };
+  const p = strokeEls.get(id);
+  if (p) p.setAttribute('stroke', ACCENT);
+  renderProps();
+}
 function deselect() { clearSelVisual(); ui.sel = null; renderProps(); }
 
+function swatchHtml(pal, cur, useHex) {
+  return '<div class="swatches">' + pal.map(p => {
+    const val = useHex ? p.c : p.id;
+    const act = useHex ? p.c === cur : p.id === cur;
+    return '<button class="swatch ' + (act ? 'active' : '') + '" data-color="' + val + '" style="background:' + p.c + '" title="Цвет"></button>';
+  }).join('') + '</div>';
+}
+function widthsHtml(cur) {
+  return '<div class="swatches">' + PEN_WIDTHS.map((w, i) => {
+    const act = (w === 2 && cur <= 3) || (w === 5 && cur > 3 && cur <= 7) || (w === 10 && cur > 7);
+    const d = 6 + i * 4;
+    return '<button class="penw ' + (act ? 'active' : '') + '" data-pw="' + w + '" title="Толщина"><i style="width:' + d + 'px;height:' + d + 'px"></i></button>';
+  }).join('') + '</div>';
+}
 function renderProps() {
-  if (!ui.sel || ui.pendingConnect) { propsEl.hidden = true; return; }
-  const swatchHtml = (pal, cur) => '<div class="swatches">' + pal.map(p =>
-    '<button class="swatch ' + (p.id === cur ? 'active' : '') + '" data-color="' + p.id + '" style="background:' + p.c + '" title="Цвет"></button>').join('') + '</div>';
+  if (!ui.sel) {
+    if (ui.tool === 'pen') {
+      propsEl.innerHTML = '<div class="props-head">Кисть</div>' +
+        swatchHtml(TEXT_COLORS, ui.penColor, true) + widthsHtml(ui.penW) +
+        '<div class="props-note">Рисуйте прямо на доске. Ластик стирает линии движением.</div>';
+      propsEl.hidden = false;
+      return;
+    }
+    propsEl.hidden = true; return;
+  }
+  if (ui.pendingConnect) { propsEl.hidden = true; return; }
   let html = '';
   if (ui.sel.kind === 'card') {
     const c = getCard(ui.sel.id); if (!c) { propsEl.hidden = true; return; }
-    const names = { note: 'Стикер', todo: 'Список дел', text: 'Просто текст', image: 'Фото' };
+    const names = { note: 'Стикер', todo: 'Список дел', text: 'Просто текст', image: 'Фото', board: 'Белая доска' };
     html += '<div class="props-head">' + (names[c.type] || '') + '</div>';
-    if (c.type === 'note' || c.type === 'todo') html += swatchHtml(PALETTE, c.color);
-    else if (c.type === 'text') html += swatchHtml(TEXT_COLORS, c.color);
+    if (c.type === 'note' || c.type === 'todo') html += swatchHtml(PALETTE, c.color, false);
+    else if (c.type === 'text') html += swatchHtml(TEXT_COLORS, c.color, false);
     html += '<div class="props-actions">';
     if (c.type === 'image') {
       html += '<button class="pbtn" data-act="replace" title="Заменить фото"><svg class="ic"><use href="#i-image"/></svg><span>Заменить</span></button>';
-    } else {
+    } else if (c.type !== 'board') {
       html += '<button class="pbtn" data-act="edit" title="Редактировать текст"><svg class="ic"><use href="#i-pencil"/></svg><span>Текст</span></button>';
     }
-    html += '<button class="pbtn" data-act="dup" title="Дублировать (Ctrl+D)"><svg class="ic"><use href="#i-copy"/></svg><span>Копия</span></button>' +
+    html += '<button class="pbtn" data-act="back" title="На задний план"><svg class="ic"><use href="#i-down"/></svg><span>Назад</span></button>' +
+      '<button class="pbtn" data-act="front" title="На передний план"><svg class="ic"><use href="#i-up"/></svg><span>Вперёд</span></button>' +
+      '<button class="pbtn" data-act="dup" title="Дублировать (Ctrl+D)"><svg class="ic"><use href="#i-copy"/></svg><span>Копия</span></button>' +
       '<button class="pbtn" data-act="link" title="Соединить стрелкой"><svg class="ic"><use href="#i-connect"/></svg><span>Стрелка</span></button>' +
+      '<button class="pbtn danger" data-act="del" title="Удалить (Del)"><svg class="ic"><use href="#i-trash"/></svg><span>Удалить</span></button>' +
+      '</div>';
+  } else if (ui.sel.kind === 'stroke') {
+    const s = strokeById(ui.sel.id); if (!s) { propsEl.hidden = true; return; }
+    html += '<div class="props-head">Линия</div>' +
+      swatchHtml(TEXT_COLORS, s.color, true) + widthsHtml(s.w) +
+      '<div class="props-actions">' +
       '<button class="pbtn danger" data-act="del" title="Удалить (Del)"><svg class="ic"><use href="#i-trash"/></svg><span>Удалить</span></button>' +
       '</div>';
   } else {
@@ -1035,15 +1204,47 @@ function renderProps() {
 }
 propsEl.addEventListener('click', e => {
   const sw = e.target.closest('.swatch');
-  if (sw && ui.sel && ui.sel.kind === 'card') {
-    const c = getCard(ui.sel.id);
-    if (!c) return;
-    pushHistory();
-    c.color = sw.dataset.color;
-    const el = getEl(c.id);
-    if (c.type === 'text') el.style.setProperty('--tc', textColorOf(c.color));
-    else el.style.setProperty('--c', colorOf(c.color));
-    renderProps(); saveNow();
+  if (sw) {
+    if (ui.sel && ui.sel.kind === 'card') {
+      const c = getCard(ui.sel.id);
+      if (!c) return;
+      pushHistory();
+      c.color = sw.dataset.color;
+      const el = getEl(c.id);
+      if (c.type === 'text') el.style.setProperty('--tc', textColorOf(c.color));
+      else el.style.setProperty('--c', colorOf(c.color));
+      renderProps(); saveNow();
+    } else if (ui.sel && ui.sel.kind === 'stroke') {
+      const s = strokeById(ui.sel.id);
+      if (s) {
+        pushHistory();
+        s.color = sw.dataset.color;
+        const p = strokeEls.get(s.id);
+        if (p) p.setAttribute('stroke', s.color);
+        renderProps(); saveNow();
+      }
+    } else if (!ui.sel && ui.tool === 'pen') {
+      ui.penColor = sw.dataset.color;
+      persistPen(); renderProps();
+    }
+    return;
+  }
+  const pw = e.target.closest('[data-pw]');
+  if (pw) {
+    const v = +pw.dataset.pw;
+    if (ui.sel && ui.sel.kind === 'stroke') {
+      const s = strokeById(ui.sel.id);
+      if (s) {
+        pushHistory();
+        s.w = v;
+        const p = strokeEls.get(s.id);
+        if (p) p.setAttribute('stroke-width', v);
+        renderProps(); saveNow();
+      }
+    } else if (!ui.sel && ui.tool === 'pen') {
+      ui.penW = v;
+      persistPen(); renderProps();
+    }
     return;
   }
   const b = e.target.closest('[data-act]'); if (!b) return;
@@ -1055,6 +1256,17 @@ propsEl.addEventListener('click', e => {
     if (act === 'dup') duplicateCard(c.id);
     if (act === 'link') setPending(c.id);
     if (act === 'del') deleteCard(c.id);
+    if (act === 'front' || act === 'back') {
+      const i = state.cards.findIndex(x => x.id === c.id);
+      if (i >= 0) {
+        pushHistory();
+        const moved = state.cards.splice(i, 1)[0];
+        if (act === 'front') state.cards.push(moved); else state.cards.unshift(moved);
+        applyCardOrder(); saveNow();
+      }
+    }
+  } else if (ui.sel && ui.sel.kind === 'stroke') {
+    if (act === 'del') deleteStroke(ui.sel.id);
   } else if (ui.sel && ui.sel.kind === 'link') {
     const l = state.links.find(x => x.id === ui.sel.id); if (!l) return;
     if (act === 'del') deleteLink(l.id);
@@ -1092,12 +1304,21 @@ function setTool(t) {
   ui.tool = t;
   viewport.dataset.tool = t;
   document.querySelectorAll('.tbtn').forEach(b => b.classList.toggle('active', b.dataset.tool === t));
+  renderProps();
 }
 document.querySelectorAll('.tbtn').forEach(btn => {
   btn.addEventListener('click', () => {
     const t = btn.dataset.tool;
     cancelPending();
     if (t === 'photo') { $('#imgInput').click(); return; }
+    if (t === 'board') {
+      const r = viewport.getBoundingClientRect();
+      const w = screenToWorld(r.left + r.width / 2, r.top + r.height / 2);
+      addCard(makeCard('board', Math.round(w.x - 450), Math.round(w.y - 300)), false, true);
+      setTool('select');
+      toast('Белая доска добавлена — тяните уголок для размера');
+      return;
+    }
     if (t === ui.tool && t !== 'select') setTool('select');
     else setTool(t);
     if (t === 'note' || t === 'todo' || t === 'text') {
@@ -1202,6 +1423,7 @@ viewport.addEventListener('pointerdown', e => {
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
   if (pointers.size === 2) { // щипок
+    if (gesture.type === 'draw') { removeStroke(gesture.id); updateEmptyHint(); }
     gesture = { type: 'pinch' };
     tmpLine.setAttribute('visibility', 'hidden');
     document.querySelectorAll('.conn-target').forEach(el => el.classList.remove('conn-target'));
@@ -1217,14 +1439,14 @@ viewport.addEventListener('pointerdown', e => {
     return;
   }
 
-  const handle = e.target.closest('.img-handle');
+  const handle = e.target.closest('.rz-handle');
   if (handle) {
     const cardEl = handle.closest('.card');
     const c = getCard(cardEl.dataset.id);
     if (c) {
       selectCard(c.id);
       blurActive();
-      gesture = { type: 'resize', id: c.id, w0: c.w, sx: e.clientX, sy: e.clientY };
+      gesture = { type: 'resize', id: c.id, w0: c.w, h0: c.h || 0, sx: e.clientX, sy: e.clientY };
       viewport.setPointerCapture(e.pointerId);
     }
     return;
@@ -1236,12 +1458,31 @@ viewport.addEventListener('pointerdown', e => {
   viewport.setPointerCapture(e.pointerId);
 
   if (ui.tool === 'eraser') {
-    if (cardEl) deleteCard(cardEl.dataset.id);
-    else if (linkG) deleteLink(linkG.dataset.id);
-    gesture = { type: 'none' };
+    const w0 = screenToWorld(e.clientX, e.clientY);
+    const hs = hitStroke(w0.x, w0.y, 12 / state.view.s);
+    if (hs) {
+      pushHistory(); removeStroke(hs.id);
+      updateEmptyHint(); scheduleSave();
+      gesture = { type: 'none' };
+      return;
+    }
+    if (cardEl) { deleteCard(cardEl.dataset.id); gesture = { type: 'none' }; return; }
+    if (linkG) { deleteLink(linkG.dataset.id); gesture = { type: 'none' }; return; }
+    gesture = { type: 'erase', hist: false, removed: false, lx: w0.x, ly: w0.y };
     return;
   }
   if (nodrag) { gesture = { type: 'none' }; return; } // кнопки внутри карточек
+
+  if (ui.tool === 'pen') {
+    pushHistory();
+    const w0 = screenToWorld(e.clientX, e.clientY);
+    const s = { id: uid(), pts: [r1(w0.x), r1(w0.y)], color: ui.penColor, w: ui.penW };
+    state.strokes.push(s);
+    ensureStrokeEl(s);
+    updateEmptyHint();
+    gesture = { type: 'draw', id: s.id, lx: w0.x, ly: w0.y };
+    return;
+  }
 
   if (ui.tool === 'connect') {
     if (cardEl) {
@@ -1316,10 +1557,35 @@ viewport.addEventListener('pointermove', e => {
     const c = getCard(gesture.id); if (!c) return;
     const dx = (e.clientX - gesture.sx) / state.view.s;
     const dy = (e.clientY - gesture.sy) / state.view.s;
-    c.w = Math.round(clamp(gesture.w0 + (dx + dy) / 2, 90, 1400));
     const el = getEl(c.id);
-    if (el) el.style.width = c.w + 'px';
+    if (c.type === 'board') {
+      c.w = Math.round(clamp(gesture.w0 + dx, 160, 4000));
+      c.h = Math.round(clamp(gesture.h0 + dy, 120, 4000));
+      if (el) { el.style.width = c.w + 'px'; el.style.height = c.h + 'px'; }
+    } else {
+      c.w = Math.round(clamp(gesture.w0 + (dx + dy) / 2, 90, 1400));
+      if (el) el.style.width = c.w + 'px';
+    }
     scheduleLayout();
+  } else if (gesture.type === 'draw') {
+    const s = strokeById(gesture.id); if (!s) return;
+    const w = screenToWorld(e.clientX, e.clientY);
+    const minD = 1.2 / state.view.s;
+    if (Math.hypot(w.x - gesture.lx, w.y - gesture.ly) >= minD) {
+      s.pts.push(r1(w.x), r1(w.y));
+      gesture.lx = w.x; gesture.ly = w.y;
+      const p = strokeEls.get(s.id);
+      if (p) p.setAttribute('d', strokeD(s.pts));
+    }
+  } else if (gesture.type === 'erase') {
+    const w = screenToWorld(e.clientX, e.clientY);
+    const hs = hitStroke(w.x, w.y, 12 / state.view.s);
+    if (hs) {
+      if (!gesture.hist) { pushHistory(); gesture.hist = true; }
+      removeStroke(hs.id);
+      gesture.removed = true;
+      updateEmptyHint();
+    }
   } else if (gesture.type === 'connect') {
     if (!gesture.moved && Math.hypot(e.clientX - gesture.sx, e.clientY - gesture.sy) > 5) {
       gesture.moved = true;
@@ -1351,6 +1617,7 @@ function endPointer(e) {
     return;
   }
   if (e.type === 'pointercancel') {
+    if (gesture.type === 'draw') { removeStroke(gesture.id); updateEmptyHint(); }
     document.querySelectorAll('.card.lift').forEach(el => el.classList.remove('lift'));
     document.querySelectorAll('.conn-target').forEach(el => el.classList.remove('conn-target'));
     tmpLine.setAttribute('visibility', 'hidden');
@@ -1362,8 +1629,16 @@ function endPointer(e) {
 
   if (gesture.type === 'resize') {
     scheduleSave();
+  } else if (gesture.type === 'draw') {
+    scheduleSave();
+  } else if (gesture.type === 'erase') {
+    if (gesture.removed) scheduleSave();
   } else if (gesture.type === 'pan' && tap(gesture) && gesture.bg) {
-    if (ui.pendingConnect) cancelPending(); else deselect();
+    const w = screenToWorld(e.clientX, e.clientY);
+    const hs = hitStroke(w.x, w.y, 10 / state.view.s);
+    if (hs) selectStroke(hs.id);
+    else if (ui.pendingConnect) cancelPending();
+    else deselect();
   } else if (gesture.type === 'card') {
     const el = getEl(gesture.id);
     if (el) el.classList.remove('lift');
@@ -1428,6 +1703,7 @@ cardsG.addEventListener('click', e => {
     if (card.type === 'image') { ui.replaceTarget = card.id; $('#imgInput').click(); }
     else if (card.type === 'note') editNote(card);
     else if (card.type === 'text') editText(card);
+    else if (card.type === 'board') { /* у доски нет текста */ }
     else editTodoTitle(card);
     return;
   }
@@ -1526,7 +1802,9 @@ window.addEventListener('keydown', e => {
   if (e.key === 'Delete' || e.key === 'Backspace') {
     if (!ui.sel) return;
     e.preventDefault();
-    if (ui.sel.kind === 'card') deleteCard(ui.sel.id); else deleteLink(ui.sel.id);
+    if (ui.sel.kind === 'card') deleteCard(ui.sel.id);
+    else if (ui.sel.kind === 'link') deleteLink(ui.sel.id);
+    else deleteStroke(ui.sel.id);
     return;
   }
   if (e.key === '=' || e.key === '+') { const r = viewport.getBoundingClientRect(); zoomAt(r.width / 2, r.height / 2, 1.25); }
@@ -1591,7 +1869,7 @@ function loadCurrent() {
   try { const raw = localStorage.getItem(bkey(boardId)); if (raw) d = JSON.parse(raw); } catch (e) {}
   const clean = sanitizeData(d && Array.isArray(d.cards) ? d : { cards: [], links: [] });
   state.name = d && typeof d.name === 'string' ? d.name : 'Без названия';
-  state.cards = clean.cards; state.links = clean.links;
+  state.cards = clean.cards; state.links = clean.links; state.strokes = clean.strokes;
   if (d && d.view && typeof d.view.x === 'number' && typeof d.view.s === 'number') {
     state.view = { x: +d.view.x, y: +d.view.y, s: clamp(+d.view.s || 1, 0.15, 3) };
     pendingFit = false;
@@ -1618,7 +1896,7 @@ function createBoard(name) {
   const id = uid();
   idx.push({ id: id, name: name, ts: Date.now() }); saveIndex();
   boardId = id; setActive();
-  state.name = name; state.cards = []; state.links = [];
+  state.name = name; state.cards = []; state.links = []; state.strokes = [];
   const r = viewport.getBoundingClientRect();
   state.view = { x: r.width / 2, y: r.height / 2, s: 1 };
   pendingFit = false;
@@ -1675,7 +1953,7 @@ function deleteBoard(id) {
  $('#btnRedo').addEventListener('click', redo);
 
 function downloadBoard() {
-  const data = { app: 'scotch', version: 1, name: state.name, cards: state.cards, links: state.links, view: state.view };
+  const data = { app: 'scotch', version: 2, name: state.name, cards: state.cards, links: state.links, strokes: state.strokes, view: state.view };
   const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -1697,7 +1975,7 @@ function downloadBoard() {
       const d = JSON.parse(rd.result);
       if (!Array.isArray(d.cards)) throw 0;
       const clean = sanitizeData(d);
-      if (!clean.cards.length) throw 0;
+      if (!clean.cards.length && !clean.strokes.length) throw 0;
       blurActive();
       saveNow();
       const id = uid();
@@ -1705,7 +1983,7 @@ function downloadBoard() {
       idx.push({ id: id, name: name, ts: Date.now() }); saveIndex();
       boardId = id; setActive();
       state.name = name;
-      state.cards = clean.cards; state.links = clean.links;
+      state.cards = clean.cards; state.links = clean.links; state.strokes = clean.strokes;
       if (d.view && typeof d.view.x === 'number' && typeof d.view.s === 'number') {
         state.view = { x: +d.view.x, y: +d.view.y, s: clamp(+d.view.s || 1, 0.15, 3) };
         pendingFit = false;
@@ -1755,11 +2033,11 @@ function closeModal() { $('#scrim').hidden = true; modalOkCb = null; }
 function askClear() {
   openModal({
     title: 'Очистить доску?',
-    bodyHtml: 'Все стикеры, фото, списки и стрелки будут удалены с этой доски. Действие можно отменить через Ctrl+Z.',
+    bodyHtml: 'Все стикеры, фото, списки, рисунки и стрелки будут удалены с этой доски. Действие можно отменить через Ctrl+Z.',
     okText: 'Очистить', danger: true,
     onOk() {
       pushHistory();
-      state.cards = []; state.links = [];
+      state.cards = []; state.links = []; state.strokes = [];
       rebuildAll(); renderProps(); updateEmptyHint();
       saveNow();
       toast('Доска очищена');
@@ -1773,12 +2051,14 @@ const HELP_HTML = '<ul class="help-list">' +
   '<li><b>Доски</b><span>кнопка «Доски» — создать новую или переключиться</span></li>' +
   '<li><b>Стикер</b><span>инструмент-стикер или двойной клик по доске</span></li>' +
   '<li><b>Просто текст</b><span>инструмент «T» — плашка без фона</span></li>' +
-  '<li><b>Фото</b><span>инструмент «фото», бросьте файл на доску или Ctrl+V; уголок меняет размер</span></li>' +
+  '<li><b>Кисть</b><span>рисуйте от руки; цвет и толщина — в панели; тап по линии — правка</span></li>' +
+  '<li><b>Белая доска</b><span>белый фон; уголок меняет размер, «Назад» уходит под карточки</span></li>' +
+  '<li><b>Фото</b><span>инструмент «фото», бросьте файл на доску или Ctrl+V</span></li>' +
   '<li><b>Список дел</b><span>тап по пункту — правка; Enter — новый пункт</span></li>' +
   '<li><b>Стрелка</b><span>потяните от карточки к карточке</span></li>' +
+  '<li><b>Ластик</b><span>стирает линии движением; клик удаляет карточку/стрелку</span></li>' +
   '<li><b>Движение</b><span>тяните фон рукой или мышью</span></li>' +
   '<li><b>Масштаб</b><span>Ctrl + колесо, щипок, кнопки ±</span></li>' +
-  '<li><b>Удаление</b><span>выберите объект и нажмите Del, либо ластик</span></li>' +
   '<li><b>История</b><span>Ctrl+Z отменить, Ctrl+Shift+Z вернуть</span></li>' +
   '</ul>';
 function showHelp() {
@@ -1801,9 +2081,11 @@ function toast(msg) {
 function rebuildAll() {
   cardsG.classList.add('noanim');
   cardsG.innerHTML = '';
-  cardById.clear(); elById.clear(); cardH.clear();
+  strokesG.innerHTML = '';
+  cardById.clear(); elById.clear(); cardH.clear(); strokeEls.clear();
   for (const c of state.cards) attachCard(c);
   syncLinks();
+  syncStrokes();
   requestAnimationFrame(() => {
     for (const c of state.cards) { const el = getEl(c.id); if (el) cardH.set(c.id, el.offsetHeight); }
     layoutLinks();
@@ -1814,18 +2096,19 @@ function rebuildAll() {
 /* ================= Приветственная доска ================= */
 function makeSeedBoard() {
   const id = uid();
-  const A = uid(), B = uid(), C = uid(), D = uid(), P = uid(), T = uid(), L = uid();
+  const A = uid(), B = uid(), C = uid(), D = uid(), P = uid(), T = uid(), L = uid(), F = uid();
   const cards = [
+    { id: F, type: 'board', x: -720, y: -420, w: 1500, h: 980, tilt: 0 },
     { id: A, type: 'note', x: -112, y: -96, w: 216, color: 'yellow', tilt: -1.2, text: 'Привет! Это «Скотч» — бесконечная доска для идей, планов и заметок' },
     { id: B, type: 'note', x: -590, y: -290, w: 216, color: 'mint', tilt: 1.4, text: 'Дважды щёлкни по фону — приклеится новый стикер' },
     { id: C, type: 'note', x: 300, y: -310, w: 216, color: 'peach', tilt: -0.8, text: 'Меня можно тащить. А ещё соединять стрелками' },
-    { id: D, type: 'note', x: -640, y: 190, w: 216, color: 'lilac', tilt: 0.9, text: 'Тяни фон, чтобы двигаться. Масштаб — щипок или Ctrl + колесо' },
+    { id: D, type: 'note', x: -640, y: 190, w: 216, color: 'lilac', tilt: 0.9, text: 'Кистью можно рисовать прямо поверх карточек' },
     { id: P, type: 'image', x: 300, y: 150, w: 260, aspect: 0.75, tilt: 1.1, src: DEMO_PHOTO },
     { id: T, type: 'text', x: -60, y: 330, w: 240, color: 'ink', tilt: 0, text: 'А ещё здесь живут фото, списки дел и просто текст' },
     { id: L, type: 'todo', x: 660, y: -50, w: 256, color: 'sky', tilt: 0.6, title: 'Быстрый старт', items: [
       { id: uid(), text: 'Создать пару стикеров', done: true },
-      { id: uid(), text: 'Прикрепить своё фото', done: false },
-      { id: uid(), text: 'Составить свой список дел', done: false },
+      { id: uid(), text: 'Нарисовать кистью', done: false },
+      { id: uid(), text: 'Растянуть белую доску', done: false },
     ]},
   ];
   const links = [
@@ -1835,12 +2118,21 @@ function makeSeedBoard() {
     { id: uid(), from: A, to: L, label: '', dash: false },
     { id: uid(), from: T, to: L, label: 'поехали', dash: true },
   ];
+  const strokes = [
+    { id: uid(), pts: [-56, 378, -14, 370, 38, 378, 88, 370, 136, 377, 184, 371], color: '#c2431c', w: 4 },
+  ];
   const name = 'Добро пожаловать';
-  return { id: id, name: name, data: { name: name, cards: cards, links: links, view: null } };
+  return { id: id, name: name, data: { name: name, cards: cards, links: links, strokes: strokes, view: null } };
 }
 
 /* ================= Запуск ================= */
 (function init() {
+  try {
+    const pp = JSON.parse(localStorage.getItem(PENKEY) || '{}');
+    if (pp && typeof pp.color === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(pp.color)) ui.penColor = pp.color;
+    if (pp && typeof pp.w === 'number') ui.penW = clamp(pp.w, 1, 40);
+  } catch (e) {}
+
   try { idx = JSON.parse(localStorage.getItem(IDX) || '[]'); } catch (e) { idx = []; }
   if (!Array.isArray(idx)) idx = [];
 
@@ -1856,7 +2148,7 @@ function makeSeedBoard() {
             const id = uid();
             const name = (typeof d.name === 'string' && d.name) || 'Моя доска';
             idx = [{ id: id, name: name, ts: Date.now() }]; saveIndex();
-            try { localStorage.setItem(bkey(id), JSON.stringify({ name: name, cards: clean.cards, links: clean.links, view: d.view || null })); } catch (e) {}
+            try { localStorage.setItem(bkey(id), JSON.stringify({ name: name, cards: clean.cards, links: clean.links, strokes: clean.strokes, view: d.view || null })); } catch (e) {}
           }
         }
         localStorage.removeItem(KEY);
@@ -1874,7 +2166,7 @@ function makeSeedBoard() {
     try { localStorage.setItem(bkey(b.id), JSON.stringify(b.data)); } catch (e) {}
     boardId = b.id; setActive();
     state.name = b.name;
-    state.cards = b.data.cards; state.links = b.data.links;
+    state.cards = b.data.cards; state.links = b.data.links; state.strokes = b.data.strokes;
     state.view = { x: 0, y: 0, s: 1 };
     pendingFit = true; // после сборки подогнать вид под контент
     $('#boardName').value = state.name;
