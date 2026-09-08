@@ -117,8 +117,9 @@
   #viewport[data-tool="pen"]{cursor:crosshair;}
   #viewport.spacepan{cursor:grabbing;}
   #world{position:absolute; left:0; top:0; transform-origin:0 0;}
-  #linksvg{position:absolute; left:0; top:0; width:20px; height:20px; overflow:visible;}
+  /* порядок слоёв: карточки -> стрелки -> кисть (задаётся порядком элементов в #world) */
   #cardsG{position:absolute; left:0; top:0;}
+  #linksvg{position:absolute; left:0; top:0; width:20px; height:20px; overflow:visible;}
   #pensvg{position:absolute; left:0; top:0; width:20px; height:20px; overflow:visible; pointer-events:none;}
   .pstroke{fill:none; stroke-linecap:round; stroke-linejoin:round;}
 
@@ -167,10 +168,13 @@
   }
   .text-content:empty::before{content:attr(data-ph); color:rgba(41,35,22,.35);}
 
-  /* белая доска (рамка) */
-  .boardframe{background:#fff; border-radius:10px;
-    border:1px solid rgba(41,35,22,.12);
-    box-shadow:0 1px 2px rgba(41,35,22,.07), 0 14px 34px -14px rgba(41,35,22,.2);}
+  /* белая доска (фон произвольного размера) */
+  .card.board{
+    background:#ffffff;
+    border:1px solid rgba(41,35,22,.14);
+    border-radius:10px;
+    box-shadow:0 1px 2px rgba(41,35,22,.08), 0 16px 36px -16px rgba(41,35,22,.22);
+  }
 
   /* фото */
   .photo{width:260px; background:var(--panel2); padding:9px 9px 12px; border-radius:4px;
@@ -422,6 +426,7 @@
 
 <main id="viewport" data-tool="select">
   <div id="world">
+    <div id="cardsG"></div>
     <svg id="linksvg" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <marker id="mInk" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="13" markerHeight="13" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M1 1L9 5L1 9Z" fill="#3a3223"/></marker>
@@ -430,7 +435,6 @@
       <g id="linksG"></g>
       <path id="tmpLine" d="" visibility="hidden" marker-end="url(#mAcc)"/>
     </svg>
-    <div id="cardsG"></div>
     <svg id="pensvg" xmlns="http://www.w3.org/2000/svg"><g id="strokesG"></g></svg>
   </div>
   <div id="emptyHint" hidden>
@@ -512,10 +516,10 @@ const randomTilt = () => Math.round((Math.random() * 2 - 1) * 140) / 100;
 const r1 = n => Math.round(n * 10) / 10;
 
 /* ================= Хранилище досок ================= */
-const KEY = 'scotch.board.v1';          // legacy (одиночная доска из старой версии)
-const IDX = 'scotch.idx.v1';            // список досок
-const ACT = 'scotch.act.v1';            // активная доска
-const PENKEY = 'scotch.pen.v1';         // настройки кисти
+const KEY = 'scotch.board.v1';
+const IDX = 'scotch.idx.v1';
+const ACT = 'scotch.act.v1';
+const PENKEY = 'scotch.pen.v1';
 const bkey = id => 'scotch.b.' + id;
 
 const GRID = 26;
@@ -538,7 +542,6 @@ const ACCENT = '#d84e1f';
 const colorOf = id => (PALETTE.find(p => p.id === id) || PALETTE[0]).c;
 const textColorOf = id => (TEXT_COLORS.find(p => p.id === id) || TEXT_COLORS[0]).c;
 
-/* демо-фото для приветственной доски (крошечный svg) */
 const DEMO_PHOTO = 'data:image/svg+xml;utf8,' + encodeURIComponent(
   "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'>" +
   "<rect width='400' height='300' fill='#bcdcec'/>" +
@@ -549,11 +552,11 @@ const DEMO_PHOTO = 'data:image/svg+xml;utf8,' + encodeURIComponent(
 
 /* ================= Состояние ================= */
 const state = { name: '', cards: [], links: [], strokes: [], view: { x: 0, y: 0, s: 1 } };
-const ui = { tool: 'select', sel: null, pendingConnect: null, replaceTarget: null, penColor: '#292316', penW: 5 };
+const ui = { tool: 'select', sel: null, pendingConnect: null, replaceTarget: null,
+             penColor: '#292316', penW: 5, editingId: null };
 let boardId = null, idx = [], quotaWarned = false;
-let pendingFit = false; // true = после сборки нужно подогнать вид под содержимое
+let pendingFit = false;
 
-/* state.view никогда не должен быть null — страховка на все случаи */
 function ensureView() {
   if (!state.view || typeof state.view.s !== 'number' || typeof state.view.x !== 'number') {
     state.view = { x: 0, y: 0, s: 1 };
@@ -705,7 +708,7 @@ function restore(snap) {
   const d = JSON.parse(snap);
   state.cards = d.cards; state.links = d.links; state.strokes = d.strokes || [];
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
-  ui.sel = null;
+  ui.sel = null; ui.editingId = null;
   rebuildAll(); renderProps(); scheduleSave();
 }
 function resetHistory() { hist = []; hi = -1; pushHistory(); }
@@ -837,6 +840,7 @@ function addCard(card, editRightAway, atBottom) {
 }
 function deleteCard(id) {
   pushHistory();
+  if (ui.editingId === id) ui.editingId = null;
   const el = getEl(id); if (el && el.contains(document.activeElement)) document.activeElement.blur();
   if (el) el.remove();
   elById.delete(id); cardById.delete(id); cardH.delete(id);
@@ -861,11 +865,14 @@ function setEditable(node, on) {
   try { node.contentEditable = 'plaintext-only'; }
   catch (e) {
     node.contentEditable = 'true';
-    node.addEventListener('paste', e => {
-      e.preventDefault();
-      const t = (e.clipboardData || window.clipboardData).getData('text');
-      document.execCommand('insertText', false, t);
-    });
+    if (!node.__spaste) {
+      node.__spaste = true;
+      node.addEventListener('paste', e => {
+        e.preventDefault();
+        const t = (e.clipboardData || window.clipboardData).getData('text');
+        document.execCommand('insertText', false, t);
+      });
+    }
   }
 }
 function placeCaretEnd(el) {
@@ -881,6 +888,7 @@ function editContent(card, selector) {
   const c = el.querySelector(selector);
   pushHistory();
   el.classList.add('editing');
+  ui.editingId = card.id;
   setEditable(c, true);
   c.focus(); placeCaretEnd(c);
 }
@@ -906,6 +914,7 @@ function editTodoTitle(card) {
   const t = el.querySelector('.todo-title');
   pushHistory();
   el.classList.add('editing');
+  ui.editingId = card.id;
   setEditable(t, true);
   t.focus(); placeCaretEnd(t);
 }
@@ -923,6 +932,7 @@ function makeItemEditable(card, item) {
   const span = el.querySelector('.ti[data-item="' + item.id + '"] .ti-text');
   if (!span) return;
   pushHistory();
+  ui.editingId = card.id;
   setEditable(span, true);
   span.focus(); placeCaretEnd(span);
 }
@@ -1136,7 +1146,7 @@ function selectStroke(id) {
   if (p) p.setAttribute('stroke', ACCENT);
   renderProps();
 }
-function deselect() { clearSelVisual(); ui.sel = null; renderProps(); }
+function deselect() { clearSelVisual(); ui.sel = null; ui.editingId = null; renderProps(); }
 
 function swatchHtml(pal, cur, useHex) {
   return '<div class="swatches">' + pal.map(p => {
@@ -1455,6 +1465,16 @@ viewport.addEventListener('pointerdown', e => {
   const cardEl = e.target.closest('.card');
   const linkG = e.target.closest('.link');
   const nodrag = e.target.closest('[data-nodrag]');
+
+  /* Редактируемый текст: не перехватываем жест, чтобы браузер мог
+     двигать курсор и выделять текст — карточка «закреплена» на время правки */
+  if (ui.tool === 'select' &&
+      (e.target.isContentEditable ||
+       (ui.editingId && cardEl && cardEl.dataset.id === ui.editingId))) {
+    gesture = { type: 'none' };
+    return;
+  }
+
   viewport.setPointerCapture(e.pointerId);
 
   if (ui.tool === 'eraser') {
@@ -1721,6 +1741,7 @@ cardsG.addEventListener('click', e => {
 cardsG.addEventListener('focusout', e => {
   const t = e.target;
   if (!t.isContentEditable) return;
+  ui.editingId = null;
   const cardEl = t.closest('.card'); if (!cardEl) return;
   const card = getCard(cardEl.dataset.id); if (!card) return;
   if (t.classList.contains('note-content')) commitNote(card);
@@ -1885,6 +1906,7 @@ function switchBoard(id) {
   boardId = id; setActive();
   loadCurrent();
   resetHistory();
+  ui.editingId = null;
   deselect(); cancelPending();
   rebuildAll(); renderProps(); updateEmptyHint();
   applyOrFit();
@@ -1903,6 +1925,7 @@ function createBoard(name) {
   $('#boardName').value = name;
   saveNow();
   resetHistory();
+  ui.editingId = null;
   deselect(); cancelPending();
   rebuildAll(); renderProps(); updateEmptyHint(); applyView();
   toast('Доска «' + name + '» создана');
@@ -1993,7 +2016,7 @@ function downloadBoard() {
       }
       $('#boardName').value = name;
       saveNow();
-      resetHistory(); deselect();
+      resetHistory(); ui.editingId = null; deselect();
       rebuildAll(); renderProps(); updateEmptyHint();
       applyOrFit();
       toast('Доска загружена как «' + name + '»');
@@ -2053,6 +2076,7 @@ const HELP_HTML = '<ul class="help-list">' +
   '<li><b>Просто текст</b><span>инструмент «T» — плашка без фона</span></li>' +
   '<li><b>Кисть</b><span>рисуйте от руки; цвет и толщина — в панели; тап по линии — правка</span></li>' +
   '<li><b>Белая доска</b><span>белый фон; уголок меняет размер, «Назад» уходит под карточки</span></li>' +
+  '<li><b>Правка текста</b><span>пока вы редактируете текст, карточка закреплена — курсор двигается свободно</span></li>' +
   '<li><b>Фото</b><span>инструмент «фото», бросьте файл на доску или Ctrl+V</span></li>' +
   '<li><b>Список дел</b><span>тап по пункту — правка; Enter — новый пункт</span></li>' +
   '<li><b>Стрелка</b><span>потяните от карточки к карточке</span></li>' +
@@ -2136,7 +2160,6 @@ function makeSeedBoard() {
   try { idx = JSON.parse(localStorage.getItem(IDX) || '[]'); } catch (e) { idx = []; }
   if (!Array.isArray(idx)) idx = [];
 
-  /* миграция со старой одиночной версии */
   if (!idx.length) {
     try {
       const raw = localStorage.getItem(KEY);
@@ -2168,7 +2191,7 @@ function makeSeedBoard() {
     state.name = b.name;
     state.cards = b.data.cards; state.links = b.data.links; state.strokes = b.data.strokes;
     state.view = { x: 0, y: 0, s: 1 };
-    pendingFit = true; // после сборки подогнать вид под контент
+    pendingFit = true;
     $('#boardName').value = state.name;
   } else {
     boardId = act; setActive();
