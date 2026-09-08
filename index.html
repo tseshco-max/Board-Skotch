@@ -1,0 +1,1893 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Скотч — бесконечная доска заметок</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='4' y='6' width='24' height='22' rx='3' fill='%23ffe08a'/%3E%3Crect x='8' y='1' width='16' height='7' rx='1.5' fill='%23ffffff' opacity='.65' transform='rotate(-4 16 5)'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;700&family=Golos+Text:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#f2ecdf;
+    --panel:#faf6ec;
+    --panel2:#fffdf6;
+    --ink:#292316;
+    --muted:rgba(41,35,22,.55);
+    --line:rgba(41,35,22,.13);
+    --accent:#d84e1f;
+    --danger:#b3361a;
+    --sh1:0 1px 2px rgba(41,35,22,.14), 0 10px 24px -8px rgba(41,35,22,.22);
+    --sh2:0 2px 4px rgba(41,35,22,.16), 0 18px 40px -10px rgba(41,35,22,.32);
+  }
+  *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%; overflow:hidden; overscroll-behavior:none;}
+  body{
+    height:100vh;
+    height:100dvh;
+    display:flex; flex-direction:column;
+    font-family:"Golos Text",system-ui,sans-serif; color:var(--ink); background:var(--paper);
+  }
+  button{font-family:inherit; color:inherit; background:none; border:none; cursor:pointer;}
+  svg.defs{position:absolute; width:0; height:0; overflow:hidden;}
+  .ic{width:19px;height:19px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; flex:none;}
+
+  /* ---------- Шапка ---------- */
+  #topbar{
+    height:54px; flex:none; display:flex; align-items:center; gap:8px; padding:0 14px;
+    background:var(--panel); border-bottom:1px solid var(--line); position:relative; z-index:20;
+  }
+  .brand{display:flex; align-items:center; gap:10px; margin-right:4px; flex:none;}
+  .logo{width:30px;height:30px; background:#ffe08a; border-radius:4px; position:relative; transform:rotate(-3deg);
+    box-shadow:0 1px 2px rgba(41,35,22,.25);}
+  .logo::after{content:""; position:absolute; top:-5px; left:50%; width:20px; height:9px;
+    transform:translateX(-50%) rotate(-5deg); background:rgba(255,255,255,.55);
+    border:1px solid rgba(41,35,22,.06); border-radius:1px;}
+  .brand-name{font-family:"Unbounded"; font-weight:700; font-size:14px; letter-spacing:.02em; white-space:nowrap;}
+  #boardName{
+    font:500 14px "Golos Text"; color:var(--ink); background:transparent; border:none;
+    border-bottom:1px dashed transparent; padding:4px 2px; outline:none;
+    flex:0 1 200px; min-width:70px; width:auto;
+  }
+  #boardName:hover{border-bottom-color:var(--line);}
+  #boardName:focus{border-bottom-color:var(--accent);}
+  #savedState{display:flex; align-items:center; gap:5px; font-size:12px; color:var(--muted);
+    opacity:0; transition:opacity .5s; margin-left:2px; white-space:nowrap; flex:none;}
+  #savedState.show{opacity:1; transition:opacity .12s;}
+  #savedState .ic{width:14px;height:14px; stroke-width:2.4;}
+  .spacer{flex:1; min-width:4px;}
+  .tb-group{display:flex; align-items:center; gap:2px; flex:none;}
+  .tb-sep{width:1px; height:22px; background:var(--line); margin:0 6px; flex:none;}
+  .hbtn{width:34px;height:34px; display:inline-flex; align-items:center; justify-content:center;
+    border-radius:9px; color:var(--ink); flex:none;}
+  .hbtn:hover{background:rgba(41,35,22,.07);}
+  .hbtn:disabled{opacity:.3; pointer-events:none;}
+  .hbtn.danger:hover{background:rgba(179,54,26,.1); color:var(--danger);}
+  /* кнопка «Доски»: более сильный селектор, чтобы .hbtn не сжимал её до 34px */
+  .hbtn.boards-btn{width:auto; padding:0 10px; gap:7px; font-weight:600; font-size:13px; flex:none;}
+  #btnMenu{display:none;}
+
+  /* ---------- Панель досок ---------- */
+  #boardPanel{position:fixed; z-index:45; top:60px; left:10px; background:var(--panel2);
+    border:1px solid var(--line); border-radius:13px; box-shadow:var(--sh1); width:300px;
+    max-width:calc(100vw - 20px); padding:8px; display:flex; flex-direction:column;}
+  #boardPanel[hidden]{display:none;}
+  .bp-head{font-size:10.5px; font-weight:600; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--muted); padding:8px 10px 6px;}
+  #boardList{display:flex; flex-direction:column; gap:2px; max-height:46vh;
+    max-height:min(46vh,380px); overflow:auto; -webkit-overflow-scrolling:touch;}
+  .bp-row{display:flex; align-items:center; gap:10px; padding:9px 10px; border-radius:9px; cursor:pointer;}
+  .bp-row:hover{background:rgba(41,35,22,.06);}
+  .bp-row.on{background:rgba(216,78,31,.08);}
+  .bp-dot{width:10px;height:10px;border-radius:50%;flex:none;box-shadow:inset 0 0 0 1px rgba(41,35,22,.12);}
+  .bp-main{flex:1; min-width:0; display:flex; flex-direction:column; gap:1px;}
+  .bp-name{font-size:13.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .bp-date{font-size:11px; color:var(--muted);}
+  .bp-check{color:var(--accent); width:16px; height:16px; stroke-width:2.6; flex:none;}
+  .bp-del{width:28px;height:28px;flex:none;border-radius:8px;display:flex;align-items:center;justify-content:center;
+    color:var(--muted); opacity:0; transition:opacity .15s, background .15s, color .15s;}
+  .bp-del .ic{width:14px;height:14px;}
+  .bp-row:hover .bp-del{opacity:1;}
+  .bp-del:hover{color:var(--danger); background:rgba(179,54,26,.09);}
+  @media (hover:none){ .bp-del{opacity:.5;} }
+  #bpNew{display:flex; align-items:center; gap:9px; margin-top:6px; padding:10px; font-size:13.5px;
+    font-weight:600; border-radius:9px; border-top:1px solid var(--line); color:var(--accent); flex:none;}
+  #bpNew:hover{background:rgba(216,78,31,.07);}
+  #bpNew .ic{width:16px;height:16px; stroke-width:2.2;}
+
+  /* выпадающее меню (узкие экраны) */
+  #menu{position:absolute; top:58px; right:10px; z-index:40; background:var(--panel2);
+    border:1px solid var(--line); border-radius:12px; box-shadow:var(--sh1); padding:6px; min-width:220px;}
+  #menu button{display:flex; align-items:center; gap:10px; width:100%; padding:10px 12px;
+    font-size:13.5px; font-weight:500; border-radius:8px; text-align:left;}
+  #menu button:hover{background:rgba(41,35,22,.06);}
+  #menu button.danger{color:var(--danger);}
+  #menu button.danger:hover{background:rgba(179,54,26,.08);}
+
+  /* ---------- Канва ---------- */
+  #viewport{
+    flex:1; min-height:0; position:relative; overflow:hidden; touch-action:none;
+    background-color:var(--paper);
+    background-image:radial-gradient(circle, rgba(74,62,40,.17) 1.2px, transparent 1.7px);
+    cursor:grab; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;
+  }
+  #viewport.panning{cursor:grabbing;}
+  #viewport[data-tool="connect"]{cursor:crosshair;}
+  #viewport[data-tool="eraser"]{cursor:crosshair;}
+  #viewport.spacepan{cursor:grabbing;}
+  #world{position:absolute; left:0; top:0; transform-origin:0 0;}
+  #linksvg{position:absolute; left:0; top:0; width:20px; height:20px; overflow:visible;}
+  #cardsG{position:absolute; left:0; top:0;}
+
+  /* стрелки */
+  .link-hit{fill:none; stroke:rgba(0,0,0,0); stroke-width:16; cursor:pointer;}
+  .link-line{fill:none; stroke:#3a3223; stroke-width:2; pointer-events:none;}
+  .link.selected .link-line{stroke:var(--accent); stroke-width:2.4;}
+  .link-lab{font:600 13px "Golos Text"; fill:var(--ink); paint-order:stroke;
+    stroke:var(--paper); stroke-width:6px; stroke-linejoin:round; text-anchor:middle; pointer-events:none;}
+  #tmpLine{fill:none; stroke:var(--accent); stroke-width:2; stroke-dasharray:7 7; pointer-events:none;}
+
+  /* ---------- Карточки ---------- */
+  .card{position:absolute; user-select:none; -webkit-user-select:none; cursor:grab;
+    transition:box-shadow .18s, transform .18s;}
+  #cardsG.noanim .card{animation:none;}
+  .card.lift{transform:rotate(0deg) scale(1.04) !important; box-shadow:var(--sh2); z-index:5;}
+  @keyframes cardpop{from{transform:scale(.55) rotate(var(--tilt,0deg)); opacity:0;}}
+  .card{animation:cardpop .3s cubic-bezier(.34,1.5,.64,1);}
+  .card.selected{outline:2px solid var(--accent); outline-offset:3px;}
+  .card.pending{outline:2px dashed var(--accent); outline-offset:4px;}
+  .card.conn-target{outline:2px solid var(--accent); outline-offset:3px; opacity:.85;}
+
+  .note{
+    width:216px; padding:16px 16px 18px; border-radius:3px;
+    background:var(--c,#ffe08a); transform:rotate(var(--tilt,0deg));
+    box-shadow:0 1px 2px rgba(41,35,22,.2), 0 8px 20px -6px rgba(41,35,22,.28);
+  }
+  .note::before,.photo::before{ /* кусочек скотча */
+    content:""; position:absolute; top:-11px; left:50%; width:78px; height:23px;
+    transform:translateX(-50%) rotate(-2.5deg); background:rgba(255,255,255,.42);
+    border:1px solid rgba(41,35,22,.07); box-shadow:0 1px 3px rgba(41,35,22,.1); pointer-events:none;
+  }
+  .photo::before{transform:translateX(-50%) rotate(2deg);}
+  .note-content{
+    font-family:"Unbounded"; font-weight:600; font-size:15px; line-height:1.5;
+    word-break:break-word; white-space:pre-wrap; outline:none; min-height:100px; color:#241f12;
+  }
+  [contenteditable]:not([contenteditable="false"]){user-select:text; -webkit-user-select:text; cursor:text;}
+  .note-content:empty::before{content:attr(data-ph); color:rgba(41,35,22,.38);}
+
+  /* просто текст */
+  .textplate{width:240px; padding:6px 8px; transform:rotate(var(--tilt,0deg));}
+  .text-content{
+    font:600 17px/1.5 "Golos Text"; color:var(--tc,var(--ink));
+    word-break:break-word; white-space:pre-wrap; outline:none; min-height:28px;
+  }
+  .text-content:empty::before{content:attr(data-ph); color:rgba(41,35,22,.35);}
+
+  /* фото */
+  .photo{width:260px; background:var(--panel2); padding:9px 9px 12px; border-radius:4px;
+    transform:rotate(var(--tilt,0deg));
+    box-shadow:0 1px 2px rgba(41,35,22,.2), 0 8px 20px -6px rgba(41,35,22,.26);}
+  .img-frame{border-radius:2px; overflow:hidden; background:rgba(41,35,22,.06);}
+  .img-frame img{display:block; width:100%; height:auto; pointer-events:none;
+    -webkit-user-drag:none; user-select:none;}
+  .img-handle{position:absolute; right:-9px; bottom:-9px; width:24px; height:24px; border-radius:50%;
+    background:var(--panel2); border:1.5px solid var(--accent); color:var(--accent);
+    box-shadow:0 1px 5px rgba(41,35,22,.25); display:none; align-items:center; justify-content:center;
+    cursor:nwse-resize; z-index:4; touch-action:none;}
+  .img-handle .ic{width:11px; height:11px; stroke-width:2.6;}
+  .card.selected .img-handle{display:flex;}
+
+  .todo{
+    width:256px; background:var(--panel2); border:1px solid var(--line); border-radius:11px;
+    box-shadow:0 1px 2px rgba(41,35,22,.16), 0 10px 24px -8px rgba(41,35,22,.24);
+    transform:rotate(var(--tilt,0deg));
+  }
+  .todo-head{display:flex; align-items:center; gap:8px; padding:11px 13px;
+    background:var(--c,#b5d8e6); border-radius:10px 10px 0 0; border-bottom:1px solid rgba(41,35,22,.08);}
+  .todo-title{flex:1; font-weight:600; font-size:15px; line-height:1.25; outline:none; word-break:break-word;}
+  .todo-title:empty::before{content:attr(data-ph); color:rgba(41,35,22,.4);}
+  .todo-count{font-size:11.5px; font-weight:600; color:rgba(41,35,22,.55); white-space:nowrap;}
+  .todo-bar{height:3px; background:rgba(41,35,22,.09);}
+  .todo-bar i{display:block; height:100%; width:0; background:var(--ink); transition:width .25s;}
+  .todo-items{padding:6px 7px 2px;}
+  .ti{display:flex; align-items:flex-start; gap:9px; padding:5px 6px 5px 4px; border-radius:7px; position:relative;}
+  .ti:hover{background:rgba(41,35,22,.045);}
+  .ti-check{width:20px;height:20px; flex:none; margin-top:1px; border:1.6px solid rgba(41,35,22,.45);
+    border-radius:6px; display:flex; align-items:center; justify-content:center; transition:background .15s, border-color .15s;}
+  .ti-check .ic{width:12px;height:12px; stroke-width:3; color:var(--panel2); opacity:0;}
+  .ti.done .ti-check{background:var(--ink); border-color:var(--ink);}
+  .ti.done .ti-check .ic{opacity:1;}
+  .ti-text{flex:1; font-size:14px; line-height:1.45; word-break:break-word; outline:none; padding-top:1px;}
+  .ti-text:empty::before{content:attr(data-ph); color:rgba(41,35,22,.35);}
+  .ti.done .ti-text{text-decoration:line-through; opacity:.42;}
+  .ti-del{width:20px;height:20px; flex:none; margin:2px -2px 0 0; border-radius:6px; display:flex;
+    align-items:center; justify-content:center; color:var(--muted); opacity:0; transition:opacity .15s;}
+  .ti-del .ic{width:13px;height:13px; stroke-width:2;}
+  .ti:hover .ti-del{opacity:1;}
+  .ti-del:hover{color:var(--danger); background:rgba(179,54,26,.08);}
+  @media (hover:none){ .ti-del{opacity:.45;} }
+  .todo-add{display:flex; align-items:center; gap:7px; margin:2px 7px 8px; padding:7px 9px;
+    font-size:13px; font-weight:500; color:var(--muted); border-radius:8px; width:calc(100% - 14px);}
+  .todo-add:hover{background:rgba(41,35,22,.05); color:var(--ink);}
+  .todo-add .ic{width:15px;height:15px;}
+
+  .card-edit{position:absolute; top:-13px; right:-13px; width:30px; height:30px; border-radius:50%;
+    background:var(--panel2); border:1px solid var(--line); box-shadow:0 2px 6px rgba(41,35,22,.2);
+    display:flex; align-items:center; justify-content:center; opacity:0; transform:scale(.75);
+    transition:opacity .15s, transform .15s, background .15s, color .15s; z-index:3;}
+  .card-edit .ic{width:14px;height:14px;}
+  .card.selected .card-edit, .card.editing .card-edit{opacity:1; transform:scale(1);}
+  .card.editing .card-edit{display:none;}
+  .card-edit:hover{background:var(--accent); border-color:var(--accent); color:#fff;}
+
+  /* ---------- Пустая доска ---------- */
+  #emptyHint{position:absolute; left:0; top:0; right:0; bottom:0; display:flex;
+    align-items:center; justify-content:center; pointer-events:none; z-index:2;}
+  #emptyHint > div{text-align:center; padding:0 24px;}
+  #emptyHint h2{font-family:"Unbounded"; font-weight:700; font-size:24px;
+    font-size:clamp(20px, 6vw, 28px); color:rgba(41,35,22,.75);}
+  #emptyHint p{margin-top:8px; font-size:14px; color:var(--muted); max-width:420px;}
+  #emptyHint[hidden]{display:none;}
+
+  /* ---------- Панель свойств ---------- */
+  #props{position:fixed; z-index:12; top:66px; left:50%; transform:translateX(-50%);
+    background:var(--panel2); border:1px solid var(--line); border-radius:13px; box-shadow:var(--sh1);
+    padding:10px 12px; display:flex; flex-direction:column; gap:9px; max-width:calc(100vw - 16px);}
+  #props[hidden]{display:none;}
+  .props-head{font-size:10.5px; font-weight:600; letter-spacing:.14em; text-transform:uppercase; color:var(--muted);}
+  .swatches{display:flex; gap:7px;}
+  .swatch{width:26px;height:26px; border-radius:8px; border:1px solid rgba(41,35,22,.15); transition:transform .12s;}
+  .swatch:hover{transform:scale(1.12);}
+  .swatch.active{outline:2px solid var(--ink); outline-offset:2px;}
+  .props-actions{display:flex; gap:4px; flex-wrap:wrap;}
+  .pbtn{display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:500;
+    padding:7px 9px; border-radius:8px;}
+  .pbtn:hover{background:rgba(41,35,22,.06);}
+  .pbtn .ic{width:15px;height:15px;}
+  .pbtn.on{background:var(--ink); color:var(--panel2);}
+  .pbtn.danger{color:var(--danger);}
+  .pbtn.danger:hover{background:rgba(179,54,26,.09);}
+  #linkLabel{font:500 13px "Golos Text"; color:var(--ink); background:rgba(41,35,22,.045);
+    border:1px solid var(--line); border-radius:8px; padding:7px 10px; outline:none; width:230px; max-width:100%;}
+  #linkLabel:focus{border-color:var(--accent);}
+
+  /* ---------- Инструменты ---------- */
+  #tools{position:fixed; z-index:12; left:14px; top:50%; transform:translateY(-50%);
+    display:flex; flex-direction:column; gap:3px; background:var(--panel2); border:1px solid var(--line);
+    border-radius:13px; box-shadow:var(--sh1); padding:5px;}
+  .tbtn{width:44px;height:44px; border-radius:10px; display:flex; align-items:center; justify-content:center;
+    color:var(--ink); transition:background .12s, color .12s;}
+  .tbtn:hover{background:rgba(41,35,22,.07);}
+  .tbtn.active{background:var(--ink); color:var(--panel);}
+  .tbtn .ic{width:20px;height:20px;}
+
+  /* ---------- Зум ---------- */
+  #zoomui{position:fixed; z-index:12; right:14px; bottom:14px; display:flex; align-items:center; gap:2px;
+    background:var(--panel2); border:1px solid var(--line); border-radius:11px; box-shadow:var(--sh1); padding:4px;}
+  #zoomui .hbtn{width:32px;height:32px;}
+  #zoomPct{font-size:12.5px; font-weight:600; min-width:46px; text-align:center; border-radius:8px; padding:8px 2px;}
+  #zoomPct:hover{background:rgba(41,35,22,.07);}
+
+  /* ---------- Подсказка режима стрелки ---------- */
+  #connectHint{position:fixed; z-index:12; top:64px; left:50%; transform:translateX(-50%);
+    background:var(--ink); color:var(--panel); font-size:13px; font-weight:500; padding:8px 16px;
+    border-radius:99px; box-shadow:var(--sh1); white-space:nowrap; max-width:calc(100vw - 20px);
+    overflow:hidden; text-overflow:ellipsis;}
+  #connectHint[hidden]{display:none;}
+
+  /* ---------- Тосты ---------- */
+  #toasts{position:fixed; z-index:60; bottom:80px; left:50%; transform:translateX(-50%);
+    display:flex; flex-direction:column; align-items:center; gap:8px; pointer-events:none;}
+  .toast{display:flex; align-items:center; gap:8px; background:var(--ink); color:var(--panel);
+    font-size:13px; font-weight:500; padding:9px 16px; border-radius:10px; box-shadow:var(--sh2);
+    opacity:0; transform:translateY(8px); transition:opacity .2s, transform .2s;}
+  .toast.show{opacity:1; transform:translateY(0);}
+  .toast .ic{width:14px;height:14px; stroke-width:2.6;}
+
+  /* ---------- Модалка ---------- */
+  #scrim{position:fixed; left:0; top:0; right:0; bottom:0; z-index:50; background:rgba(41,35,22,.38);
+    display:flex; align-items:center; justify-content:center; padding:16px;}
+  #scrim[hidden]{display:none;}
+  #modal{background:var(--panel2); border-radius:16px; box-shadow:var(--sh2); width:100%;
+    max-width:420px; padding:22px; animation:cardpop .25s cubic-bezier(.34,1.4,.64,1);
+    max-height:calc(100vh - 32px); max-height:calc(100dvh - 32px); overflow:auto;
+    -webkit-overflow-scrolling:touch; overscroll-behavior:contain;}
+  #modalTitle{font-family:"Unbounded"; font-weight:600; font-size:15px; margin-bottom:10px;}
+  #modalBody{font-size:14px; line-height:1.55; color:var(--ink);}
+  .modal-input{width:100%; font:500 14px "Golos Text"; color:var(--ink); background:rgba(41,35,22,.04);
+    border:1px solid var(--line); border-radius:9px; padding:10px 12px; outline:none; margin-top:4px;}
+  .modal-input:focus{border-color:var(--accent);}
+  .modal-actions{display:flex; justify-content:flex-end; gap:8px; margin-top:18px;}
+  .mbtn{font-size:13.5px; font-weight:600; padding:9px 16px; border-radius:9px;}
+  .mbtn.ghost{color:var(--muted);} .mbtn.ghost:hover{background:rgba(41,35,22,.06); color:var(--ink);}
+  .mbtn.solid{background:var(--ink); color:var(--panel2);} .mbtn.solid:hover{opacity:.88;}
+  .mbtn.red{background:var(--danger); color:#fff;} .mbtn.red:hover{opacity:.88;}
+  .help-list{list-style:none; display:flex; flex-direction:column; gap:9px;}
+  .help-list li{display:flex; gap:10px; align-items:baseline;}
+  .help-list b{flex:none; width:150px; font-size:12.5px; font-weight:600;}
+  .help-list span{font-size:12.5px; color:var(--muted);}
+  @media (max-width:520px){ .help-list b{width:118px;} }
+
+  /* ---------- Адаптив ---------- */
+  @media (max-width:820px){
+    .only-wide{display:none;}
+    #btnMenu{display:inline-flex;}
+  }
+  @media (max-width:640px){
+    #topbar{gap:6px; padding:0 10px;}
+    #topbar .tb-sep{display:none;}
+    .brand-name, #savedState, .boards-label{display:none;}
+    #boardName{flex:1; width:auto; font-size:16px;}
+    .hbtn.boards-btn{padding:0 8px;}
+    #boardPanel{left:8px; top:58px;}
+    #tools{left:50%; top:auto; bottom:12px; bottom:calc(12px + env(safe-area-inset-bottom));
+      transform:translateX(-50%); flex-direction:row; padding:4px;}
+    .tbtn{width:44px;height:44px;}
+    #zoomui{right:10px; bottom:80px; bottom:calc(80px + env(safe-area-inset-bottom));}
+    #props{top:auto; bottom:84px; bottom:calc(84px + env(safe-area-inset-bottom)); left:50%; transform:translateX(-50%);}
+    #connectHint{top:60px;}
+    .pbtn span{display:none;}
+    .pbtn{padding:8px;}
+    .modal-input, #linkLabel{font-size:16px;}
+  }
+</style>
+</head>
+<body>
+
+<noscript><div style="position:fixed;left:0;right:0;top:0;z-index:999;background:#b3361a;color:#fff;padding:12px 16px;font:500 14px system-ui;text-align:center">Для работы доски нужен включённый JavaScript.</div></noscript>
+
+<!-- Спрайт иконок -->
+<svg class="defs" xmlns="http://www.w3.org/2000/svg">
+  <symbol id="i-cursor" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M6 3l.4 14.6 3.7-3.3 2.4 5.6 2.6-1.1-2.5-5.6 5.1-.7z"/></symbol>
+  <symbol id="i-note" viewBox="0 0 24 24"><rect x="4.5" y="5.5" width="15" height="14" rx="2"/><path d="M8.3 10.2h7.4M8.3 14h4.6"/></symbol>
+  <symbol id="i-todo" viewBox="0 0 24 24"><rect x="4.5" y="4.5" width="15" height="15" rx="3.5"/><path d="M8.6 12.2l2.4 2.4 4.6-5"/></symbol>
+  <symbol id="i-text" viewBox="0 0 24 24"><path d="M5 7V5h14v2"/><path d="M12 5v14"/><path d="M9.5 19h5"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="2.5"/><circle cx="9.2" cy="10" r="1.7"/><path d="M4.5 16.5l4.4-4.2 3.4 3.2 3-2.8 4.2 3.8"/></symbol>
+  <symbol id="i-connect" viewBox="0 0 24 24"><path d="M4 19.2c7.4 0 4.6-10.2 11-10.2h4.4"/><path d="M15.8 5.4 19.8 9l-4 3.6"/></symbol>
+  <symbol id="i-eraser" viewBox="0 0 24 24"><path d="M13.6 4.6a2 2 0 0 1 2.8 0l3 3a2 2 0 0 1 0 2.8l-8.2 8.2H7.4l-3-3a2 2 0 0 1 0-2.8z"/><path d="M9 9.2l5.8 5.8"/><path d="M5 20h14"/></symbol>
+  <symbol id="i-undo" viewBox="0 0 24 24"><path d="M8.6 5.3 4.2 9.7l4.4 4.4"/><path d="M4.2 9.7h9.6a5.8 5.8 0 0 1 5.8 5.8v1"/></symbol>
+  <symbol id="i-redo" viewBox="0 0 24 24"><path d="M15.4 5.3l4.4 4.4-4.4 4.4"/><path d="M19.8 9.7h-9.6A5.8 5.8 0 0 0 4.4 15.5v1"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 3.8v10.4"/><path d="M7.6 10 12 14.4 16.4 10"/><path d="M5 19.6h14"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 14.2V3.8"/><path d="M7.6 8.2 12 3.8l4.4 4.4"/><path d="M5 19.6h14"/></symbol>
+  <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.4"/><path d="M9.7 9.6a2.4 2.4 0 1 1 3.5 2.6c-.8.5-1.2 1-1.2 1.9"/><path d="M12 17.1v.01"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4.5 6.5h15"/><path d="M8.5 6.5V5a1.5 1.5 0 0 1 1.5-1.5h4A1.5 1.5 0 0 1 15.5 5v1.5"/><path d="M6.5 6.5l1 13.2h9l1-13.2"/><path d="M10 10.2v6M14 10.2v6"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5.5v13M5.5 12h13"/></symbol>
+  <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5.5 12h13"/></symbol>
+  <symbol id="i-fit" viewBox="0 0 24 24"><path d="M4 9.2V5.4A1.4 1.4 0 0 1 5.4 4h3.8M14.8 4h3.8A1.4 1.4 0 0 1 20 5.4v3.8M20 14.8v3.8a1.4 1.4 0 0 1-1.4 1.4h-3.8M9.2 20H5.4A1.4 1.4 0 0 1 4 18.6v-3.8"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8.6" y="8.6" width="11" height="11" rx="2.2"/><path d="M6 15.4h-.4A1.6 1.6 0 0 1 4 13.8V5.6A1.6 1.6 0 0 1 5.6 4h8.2A1.6 1.6 0 0 1 15.4 5.6V6"/></symbol>
+  <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M4.5 19.5l.9-3.7L16.6 4.6a1.9 1.9 0 0 1 2.7 0l.1.1a1.9 1.9 0 0 1 0 2.7L8.2 18.6l-3.7.9z"/><path d="M14.8 6.4l2.8 2.8"/></symbol>
+  <symbol id="i-dash" viewBox="0 0 24 24"><path d="M4 12h3.2M10.4 12h3.2M16.8 12H20"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M4.5 12.6l4.6 4.6L19.5 6.8"/></symbol>
+  <symbol id="i-kebab" viewBox="0 0 24 24"><circle cx="12" cy="5.2" r="1.7" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.7" fill="currentColor" stroke="none"/><circle cx="12" cy="18.8" r="1.7" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-boards" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.6"/></symbol>
+  <symbol id="i-resize" viewBox="0 0 24 24"><path d="M13 13l7 7"/><path d="M20 14v6h-6"/></symbol>
+</svg>
+
+<header id="topbar">
+  <div class="brand"><span class="logo"></span><span class="brand-name">Скотч</span></div>
+  <button class="hbtn boards-btn" id="boardsBtn" aria-label="Список досок">
+    <svg class="ic"><use href="#i-boards"/></svg><span class="boards-label">Доски</span>
+  </button>
+  <div class="tb-sep"></div>
+  <input id="boardName" placeholder="Название доски" maxlength="60" autocomplete="off">
+  <span id="savedState"><svg class="ic"><use href="#i-check"/></svg>Сохранено</span>
+  <div class="spacer"></div>
+  <div class="tb-group">
+    <button class="hbtn" id="btnUndo" title="Отменить (Ctrl+Z)" aria-label="Отменить"><svg class="ic"><use href="#i-undo"/></svg></button>
+    <button class="hbtn" id="btnRedo" title="Вернуть (Ctrl+Shift+Z)" aria-label="Вернуть"><svg class="ic"><use href="#i-redo"/></svg></button>
+  </div>
+  <div class="tb-group only-wide">
+    <div class="tb-sep"></div>
+    <button class="hbtn" id="btnExport" title="Скачать доску файлом" aria-label="Экспорт"><svg class="ic"><use href="#i-down"/></svg></button>
+    <button class="hbtn" id="btnImport" title="Загрузить доску из файла (создаст новую доску)" aria-label="Импорт"><svg class="ic"><use href="#i-up"/></svg></button>
+    <button class="hbtn" id="btnHelp" title="Справка по управлению" aria-label="Справка"><svg class="ic"><use href="#i-help"/></svg></button>
+    <button class="hbtn danger" id="btnClear" title="Очистить доску" aria-label="Очистить"><svg class="ic"><use href="#i-trash"/></svg></button>
+  </div>
+  <button class="hbtn" id="btnMenu" aria-label="Меню"><svg class="ic"><use href="#i-kebab"/></svg></button>
+</header>
+
+<div id="boardPanel" hidden>
+  <div class="bp-head">Мои доски</div>
+  <div id="boardList"></div>
+  <button id="bpNew"><svg class="ic"><use href="#i-plus"/></svg>Новая доска</button>
+</div>
+
+<div id="menu" hidden>
+  <button id="mExport"><svg class="ic"><use href="#i-down"/></svg>Скачать файлом (.json)</button>
+  <button id="mImport"><svg class="ic"><use href="#i-up"/></svg>Загрузить из файла</button>
+  <button id="mHelp"><svg class="ic"><use href="#i-help"/></svg>Справка по управлению</button>
+  <button id="mClear" class="danger"><svg class="ic"><use href="#i-trash"/></svg>Очистить доску</button>
+</div>
+
+<main id="viewport" data-tool="select">
+  <div id="world">
+    <svg id="linksvg" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="mInk" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="13" markerHeight="13" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M1 1L9 5L1 9Z" fill="#3a3223"/></marker>
+        <marker id="mAcc" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="13" markerHeight="13" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M1 1L9 5L1 9Z" fill="#d84e1f"/></marker>
+      </defs>
+      <g id="linksG"></g>
+      <path id="tmpLine" d="" visibility="hidden" marker-end="url(#mAcc)"/>
+    </svg>
+    <div id="cardsG"></div>
+  </div>
+  <div id="emptyHint" hidden>
+    <div>
+      <h2>Здесь пока пусто</h2>
+      <p>Дважды щёлкните по доске — приклеится первый стикер.<br>Или возьмите инструменты на панели.</p>
+    </div>
+  </div>
+</main>
+
+<div id="connectHint" hidden></div>
+<div id="props" hidden></div>
+
+<div id="tools">
+  <button class="tbtn active" data-tool="select" title="Выбор и перемещение"><svg class="ic"><use href="#i-cursor"/></svg></button>
+  <button class="tbtn" data-tool="note" title="Стикер"><svg class="ic"><use href="#i-note"/></svg></button>
+  <button class="tbtn" data-tool="text" title="Просто текст"><svg class="ic"><use href="#i-text"/></svg></button>
+  <button class="tbtn" data-tool="todo" title="Список дел"><svg class="ic"><use href="#i-todo"/></svg></button>
+  <button class="tbtn" data-tool="photo" title="Прикрепить фото"><svg class="ic"><use href="#i-image"/></svg></button>
+  <button class="tbtn" data-tool="connect" title="Стрелка между карточками"><svg class="ic"><use href="#i-connect"/></svg></button>
+  <button class="tbtn" data-tool="eraser" title="Ластик — удалить по клику"><svg class="ic"><use href="#i-eraser"/></svg></button>
+</div>
+
+<div id="zoomui">
+  <button class="hbtn" id="zoomOut" title="Уменьшить" aria-label="Уменьшить"><svg class="ic"><use href="#i-minus"/></svg></button>
+  <button id="zoomPct" title="Сбросить масштаб">100%</button>
+  <button class="hbtn" id="zoomIn" title="Увеличить" aria-label="Увеличить"><svg class="ic"><use href="#i-plus"/></svg></button>
+  <button class="hbtn" id="zoomFit" title="Показать всю доску" aria-label="Вся доска"><svg class="ic"><use href="#i-fit"/></svg></button>
+</div>
+
+<div id="toasts"></div>
+
+<div id="scrim" hidden>
+  <div id="modal" role="dialog" aria-modal="true">
+    <div id="modalTitle"></div>
+    <div id="modalBody"></div>
+    <div class="modal-actions">
+      <button class="mbtn ghost" id="modalCancel">Отмена</button>
+      <button class="mbtn solid" id="modalOk">Ок</button>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="fileInput" accept="application/json,.json" hidden>
+<input type="file" id="imgInput" accept="image/*" multiple hidden>
+
+<script>
+'use strict';
+/* ===== Страховка: если скрипт упадёт — покажем понятную плашку вместо «мёртвого» экрана ===== */
+var __errShown = false;
+function __fatal(msg) {
+  if (__errShown) return;
+  __errShown = true;
+  try {
+    var el = document.createElement('div');
+    el.style.cssText = 'position:fixed;left:10px;right:10px;bottom:10px;z-index:999;background:#b3361a;color:#fff;padding:10px 14px;border-radius:10px;font:500 13px/1.45 system-ui,sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.3)';
+    el.textContent = msg;
+    (document.body || document.documentElement).appendChild(el);
+  } catch (e) {}
+}
+window.addEventListener('error', function (e) {
+  __fatal('Ошибка скрипта: ' + ((e && e.message) || 'неизвестно') + '. Обновите страницу (Ctrl+F5).');
+});
+window.addEventListener('unhandledrejection', function (e) {
+  var r = e && e.reason;
+  __fatal('Ошибка: ' + ((r && r.message) || r || 'неизвестно'));
+});
+
+/* ================= Утилиты ================= */
+const $ = s => document.querySelector(s);
+const NS = 'http://www.w3.org/2000/svg';
+const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-3);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const num = (v, d) => (typeof v === 'number' && isFinite(v)) ? v : d;
+const randomTilt = () => Math.round((Math.random() * 2 - 1) * 140) / 100;
+
+/* ================= Хранилище досок ================= */
+const KEY = 'scotch.board.v1';          // legacy (одиночная доска из старой версии)
+const IDX = 'scotch.idx.v1';            // список досок
+const ACT = 'scotch.act.v1';            // активная доска
+const bkey = id => 'scotch.b.' + id;
+
+const GRID = 26;
+const PALETTE = [
+  { id: 'yellow', c: '#ffe08a' },
+  { id: 'peach',  c: '#ffc9a0' },
+  { id: 'mint',   c: '#bfe3bd' },
+  { id: 'sky',    c: '#b5d8e6' },
+  { id: 'lilac',  c: '#d8cbea' },
+];
+const TEXT_COLORS = [
+  { id: 'ink',    c: '#292316' },
+  { id: 'rust',   c: '#c2431c' },
+  { id: 'forest', c: '#3e6b4a' },
+  { id: 'sea',    c: '#2b5d8a' },
+  { id: 'plum',   c: '#7a4a78' },
+];
+const colorOf = id => (PALETTE.find(p => p.id === id) || PALETTE[0]).c;
+const textColorOf = id => (TEXT_COLORS.find(p => p.id === id) || TEXT_COLORS[0]).c;
+
+/* демо-фото для приветственной доски (крошечный svg) */
+const DEMO_PHOTO = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+  "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'>" +
+  "<rect width='400' height='300' fill='#bcdcec'/>" +
+  "<circle cx='318' cy='64' r='30' fill='#ffdf8e'/>" +
+  "<path d='M-10 240 118 118l92 88 64-58 146 128v44H-10z' fill='#6f9678'/>" +
+  "<path d='M-10 272l92-64 112 84 74-50 142 74v20H-10z' fill='#5b8266'/>" +
+  "</svg>");
+
+/* ================= Состояние ================= */
+const state = { name: '', cards: [], links: [], view: { x: 0, y: 0, s: 1 } };
+const ui = { tool: 'select', sel: null, pendingConnect: null, replaceTarget: null };
+let boardId = null, idx = [], quotaWarned = false;
+let pendingFit = false; // true = после сборки нужно подогнать вид под содержимое
+
+/* state.view никогда не должен быть null — страховка на все случаи */
+function ensureView() {
+  if (!state.view || typeof state.view.s !== 'number' || typeof state.view.x !== 'number') {
+    state.view = { x: 0, y: 0, s: 1 };
+  }
+}
+
+const viewport = $('#viewport'), world = $('#world'), cardsG = $('#cardsG');
+const linksG = $('#linksG'), tmpLine = $('#tmpLine');
+const propsEl = $('#props'), connectHint = $('#connectHint'), emptyHint = $('#emptyHint');
+
+const cardById = new Map(), elById = new Map(), cardH = new Map(), linkEls = new Map();
+
+const getCard = id => cardById.get(id);
+const getEl = id => elById.get(id);
+const rectOf = c => ({
+  x: c.x, y: c.y, w: c.w,
+  h: c.type === 'image' ? Math.round(c.w * (c.aspect || 0.75)) : (cardH.get(c.id) || 80)
+});
+
+function saveIndex() { try { localStorage.setItem(IDX, JSON.stringify(idx)); } catch (e) {} }
+function setActive() { try { localStorage.setItem(ACT, boardId); } catch (e) {} }
+
+function saveNow() {
+  try {
+    localStorage.setItem(bkey(boardId), JSON.stringify({ name: state.name, cards: state.cards, links: state.links, view: state.view }));
+    const it = idx.find(b => b.id === boardId);
+    if (it) { it.name = state.name || it.name; it.ts = Date.now(); saveIndex(); }
+    const el = $('#savedState');
+    el.classList.add('show');
+    clearTimeout(saveNow._t);
+    saveNow._t = setTimeout(() => el.classList.remove('show'), 1400);
+  } catch (e) {
+    if (!quotaWarned) {
+      quotaWarned = true;
+      toast('Хранилище браузера недоступно или заполнено — сделайте бэкап через экспорт');
+    }
+  }
+}
+let saveTimer = null;
+function scheduleSave() { clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 450); }
+
+/* ================= Санитизация данных ================= */
+function sanitizeData(raw) {
+  raw = raw || {};
+  const types = ['note', 'todo', 'text', 'image'];
+  const cards = (Array.isArray(raw.cards) ? raw.cards : []).filter(c => c && types.indexOf(c.type) >= 0).map(c => {
+    const t = c.type;
+    const base = { id: c.id || uid(), type: t, x: Math.round(+c.x || 0), y: Math.round(+c.y || 0) };
+    if (t === 'note') return Object.assign(base, { w: 216, color: PALETTE.some(p => p.id === c.color) ? c.color : 'yellow', tilt: num(c.tilt, randomTilt()), text: typeof c.text === 'string' ? c.text : '' });
+    if (t === 'text') return Object.assign(base, { w: 240, color: TEXT_COLORS.some(p => p.id === c.color) ? c.color : 'ink', tilt: num(c.tilt, 0), text: typeof c.text === 'string' ? c.text : '' });
+    if (t === 'image') {
+      if (!(typeof c.src === 'string' && c.src.indexOf('data:image') === 0)) return null;
+      return Object.assign(base, { w: clamp(Math.round(+c.w || 260), 90, 1400), aspect: num(+c.aspect, 0) > 0 ? +c.aspect : 0.75, tilt: num(c.tilt, randomTilt() * 0.7), src: c.src });
+    }
+    return Object.assign(base, {
+      w: 256, color: PALETTE.some(p => p.id === c.color) ? c.color : 'sky', tilt: num(c.tilt, randomTilt()),
+      title: typeof c.title === 'string' ? c.title : '',
+      items: (Array.isArray(c.items) ? c.items : []).map(it => ({ id: (it && it.id) || uid(), text: String((it && it.text) || ''), done: !!(it && it.done) }))
+    });
+  }).filter(Boolean);
+  const ids = new Set(cards.map(c => c.id));
+  const links = (Array.isArray(raw.links) ? raw.links : [])
+    .filter(l => l && ids.has(l.from) && ids.has(l.to))
+    .map(l => ({ id: l.id || uid(), from: l.from, to: l.to, label: String(l.label || ''), dash: !!l.dash }));
+  return { cards, links };
+}
+
+/* ================= Вид (панорама/зум) ================= */
+function applyView() {
+  ensureView();
+  const v = state.view;
+  world.style.transform = 'translate(' + v.x + 'px, ' + v.y + 'px) scale(' + v.s + ')';
+  viewport.style.backgroundSize = (GRID * v.s) + 'px ' + (GRID * v.s) + 'px';
+  viewport.style.backgroundPosition = v.x + 'px ' + v.y + 'px';
+  $('#zoomPct').textContent = Math.round(v.s * 100) + '%';
+}
+function screenToWorld(cx, cy) {
+  const r = viewport.getBoundingClientRect();
+  return { x: (cx - r.left - state.view.x) / state.view.s, y: (cy - r.top - state.view.y) / state.view.s };
+}
+function zoomAt(cx, cy, factor) {
+  ensureView();
+  const v = state.view;
+  const s2 = clamp(v.s * factor, 0.15, 3);
+  v.x = cx - (cx - v.x) * s2 / v.s;
+  v.y = cy - (cy - v.y) * s2 / v.s;
+  v.s = s2;
+  applyView(); scheduleSave();
+}
+/* применить сохранённый вид или подогнать доску под содержимое */
+function applyOrFit() {
+  if (pendingFit) { pendingFit = false; requestAnimationFrame(fitAll); }
+  else applyView();
+}
+function measureSync() { for (const c of state.cards) { const el = getEl(c.id); if (el) cardH.set(c.id, el.offsetHeight); } }
+function fitAll() {
+  ensureView();
+  const r = viewport.getBoundingClientRect();
+  if (!state.cards.length) { state.view = { x: r.width / 2, y: r.height / 2, s: 1 }; applyView(); return; }
+  measureSync();
+  let minx = 1e9, miny = 1e9, maxx = -1e9, maxy = -1e9;
+  for (const c of state.cards) {
+    minx = Math.min(minx, c.x); miny = Math.min(miny, c.y);
+    maxx = Math.max(maxx, c.x + c.w); maxy = Math.max(maxy, c.y + rectOf(c).h);
+  }
+  const pad = 70, bw = maxx - minx, bh = maxy - miny;
+  const s = clamp(Math.min((r.width - pad * 2) / bw, (r.height - pad * 2) / bh), 0.15, 1.25);
+  state.view.s = s;
+  state.view.x = (r.width - bw * s) / 2 - minx * s;
+  state.view.y = (r.height - bh * s) / 2 - miny * s;
+  applyView(); scheduleSave();
+}
+
+/* ================= История ================= */
+let hist = [], hi = -1;
+const snapshot = () => JSON.stringify({ cards: state.cards, links: state.links });
+function pushHistory() {
+  const snap = snapshot();
+  if (hist[hi] === snap) return;
+  hist = hist.slice(0, hi + 1);
+  hist.push(snap);
+  if (hist.length > 60) hist.shift();
+  hi = hist.length - 1;
+  updateHistBtns();
+}
+function restore(snap) {
+  const d = JSON.parse(snap);
+  state.cards = d.cards; state.links = d.links;
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  ui.sel = null;
+  rebuildAll(); renderProps(); scheduleSave();
+}
+function resetHistory() { hist = []; hi = -1; pushHistory(); }
+function undo() { if (hi > 0) { hi--; restore(hist[hi]); updateHistBtns(); } }
+function redo() { if (hi < hist.length - 1) { hi++; restore(hist[hi]); updateHistBtns(); } }
+function updateHistBtns() { $('#btnUndo').disabled = hi <= 0; $('#btnRedo').disabled = hi >= hist.length - 1; }
+
+/* ================= Карточки ================= */
+function makeCard(type, x, y) {
+  const base = { id: uid(), type, x: Math.round(x), y: Math.round(y) };
+  if (type === 'note') return Object.assign(base, { w: 216, color: PALETTE[Math.floor(Math.random() * PALETTE.length)].id, tilt: randomTilt(), text: '' });
+  if (type === 'text') return Object.assign(base, { w: 240, color: 'ink', tilt: 0, text: '' });
+  if (type === 'image') return Object.assign(base, { w: 260, aspect: 0.75, tilt: randomTilt() * 0.7, src: '' });
+  return Object.assign(base, { w: 256, color: PALETTE[Math.floor(Math.random() * PALETTE.length)].id, tilt: randomTilt(), title: '', items: [] });
+}
+function attachCard(card) {
+  cardById.set(card.id, card);
+  const el = document.createElement('div');
+  el.className = 'card ' + card.type;
+  el.dataset.id = card.id;
+  el.style.left = card.x + 'px';
+  el.style.top = card.y + 'px';
+  el.style.setProperty('--tilt', (card.tilt || 0) + 'deg');
+
+  const editBtn = document.createElement('button');
+  editBtn.className = 'card-edit'; editBtn.dataset.nodrag = '';
+  editBtn.setAttribute('aria-label', card.type === 'image' ? 'Заменить фото' : 'Редактировать');
+  editBtn.innerHTML = '<svg class="ic"><use href="#i-pencil"/></svg>';
+  el.appendChild(editBtn);
+
+  if (card.type === 'note') {
+    el.style.setProperty('--c', colorOf(card.color));
+    const c = document.createElement('div');
+    c.className = 'note-content';
+    c.dataset.ph = 'Напишите…';
+    c.textContent = card.text || '';
+    el.appendChild(c);
+  } else if (card.type === 'text') {
+    el.style.setProperty('--tc', textColorOf(card.color));
+    const c = document.createElement('div');
+    c.className = 'text-content';
+    c.dataset.ph = 'Просто текст…';
+    c.textContent = card.text || '';
+    el.appendChild(c);
+  } else if (card.type === 'image') {
+    el.style.width = card.w + 'px';
+    const frame = document.createElement('div');
+    frame.className = 'img-frame';
+    const img = new Image();
+    img.src = card.src; img.draggable = false; img.alt = 'Фото';
+    frame.appendChild(img);
+    el.appendChild(frame);
+    const h = document.createElement('button');
+    h.className = 'img-handle'; h.dataset.nodrag = '';
+    h.setAttribute('aria-label', 'Изменить размер'); h.title = 'Потяните, чтобы изменить размер';
+    h.innerHTML = '<svg class="ic"><use href="#i-resize"/></svg>';
+    el.appendChild(h);
+  } else {
+    el.style.setProperty('--c', colorOf(card.color));
+    const head = document.createElement('div');
+    head.className = 'todo-head';
+    head.innerHTML = '<div class="todo-title" data-ph="Заголовок"></div><span class="todo-count"></span>';
+    head.querySelector('.todo-title').textContent = card.title || '';
+    el.appendChild(head);
+    el.insertAdjacentHTML('beforeend', '<div class="todo-bar"><i></i></div><div class="todo-items"></div>' +
+      '<button class="todo-add" data-nodrag><svg class="ic"><use href="#i-plus"/></svg>Пункт списка</button>');
+    renderTodoItems(card);
+  }
+  elById.set(card.id, el);
+  cardsG.appendChild(el);
+  requestAnimationFrame(() => { cardH.set(card.id, el.offsetHeight); });
+  return el;
+}
+function renderTodoItems(card) {
+  const el = getEl(card.id); if (!el) return;
+  const box = el.querySelector('.todo-items');
+  box.innerHTML = '';
+  for (const it of card.items) {
+    const row = document.createElement('div');
+    row.className = 'ti' + (it.done ? ' done' : '');
+    row.dataset.item = it.id;
+    row.innerHTML =
+      '<button class="ti-check" data-nodrag aria-label="Отметить"><svg class="ic"><use href="#i-check"/></svg></button>' +
+      '<span class="ti-text" data-ph="Пункт…"></span>' +
+      '<button class="ti-del" data-nodrag aria-label="Удалить пункт"><svg class="ic"><use href="#i-x"/></svg></button>';
+    row.querySelector('.ti-text').textContent = it.text || '';
+    box.appendChild(row);
+  }
+  updateTodoMeta(card);
+  requestAnimationFrame(() => { cardH.set(card.id, el.offsetHeight); scheduleLayout(); });
+}
+function updateTodoMeta(card) {
+  const el = getEl(card.id); if (!el) return;
+  const total = card.items.length, done = card.items.filter(i => i.done).length;
+  el.querySelector('.todo-count').textContent = total ? (done + '/' + total) : '';
+  el.querySelector('.todo-bar i').style.width = total ? (done / total * 100) + '%' : '0';
+}
+function updateEmptyHint() { emptyHint.hidden = state.cards.length > 0; }
+
+function addCard(card, editRightAway) {
+  pushHistory();
+  state.cards.push(card);
+  attachCard(card);
+  selectCard(card.id);
+  updateEmptyHint();
+  saveNow();
+  if (editRightAway) {
+    if (card.type === 'note') editNote(card);
+    else if (card.type === 'text') editText(card);
+    else if (card.type === 'todo') editTodoTitle(card);
+  }
+}
+function deleteCard(id) {
+  pushHistory();
+  const el = getEl(id); if (el && el.contains(document.activeElement)) document.activeElement.blur();
+  if (el) el.remove();
+  elById.delete(id); cardById.delete(id); cardH.delete(id);
+  state.cards = state.cards.filter(c => c.id !== id);
+  const touched = state.links.some(l => l.from === id || l.to === id);
+  state.links = state.links.filter(l => l.from !== id && l.to !== id);
+  if (touched) syncLinks();
+  if (ui.sel && ui.sel.id === id) deselect();
+  layoutLinks(); updateEmptyHint(); saveNow();
+}
+function duplicateCard(id) {
+  const c = getCard(id); if (!c) return;
+  const copy = JSON.parse(JSON.stringify(c));
+  copy.id = uid(); copy.x += 28; copy.y += 28; copy.tilt = randomTilt();
+  if (copy.items) copy.items = copy.items.map(it => Object.assign({}, it, { id: uid() }));
+  addCard(copy, false);
+}
+
+/* ================= Редактирование текста ================= */
+function setEditable(node, on) {
+  if (!on) { node.contentEditable = 'false'; return; }
+  try { node.contentEditable = 'plaintext-only'; }
+  catch (e) {
+    node.contentEditable = 'true';
+    node.addEventListener('paste', e => {
+      e.preventDefault();
+      const t = (e.clipboardData || window.clipboardData).getData('text');
+      document.execCommand('insertText', false, t);
+    });
+  }
+}
+function placeCaretEnd(el) {
+  const r = document.createRange(); r.selectNodeContents(el); r.collapse(false);
+  const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+}
+function blurActive() {
+  const ae = document.activeElement;
+  if (ae && ae.isContentEditable) ae.blur();
+}
+function editContent(card, selector) {
+  const el = getEl(card.id); if (!el) return;
+  const c = el.querySelector(selector);
+  pushHistory();
+  el.classList.add('editing');
+  setEditable(c, true);
+  c.focus(); placeCaretEnd(c);
+}
+function editNote(card) { editContent(card, '.note-content'); }
+function editText(card) { editContent(card, '.text-content'); }
+function commitContent(card, selector, setter) {
+  const el = getEl(card.id); if (!el) return;
+  const c = el.querySelector(selector);
+  setter(c.innerText);
+  el.classList.remove('editing');
+  setEditable(c, false);
+  c.textContent = card.text;
+  measureSoon(); saveNow();
+}
+function commitNote(card) {
+  commitContent(card, '.note-content', t => { card.text = t.replace(/\n+$/, ''); if (!card.text.trim()) card.text = ''; });
+}
+function commitText(card) {
+  commitContent(card, '.text-content', t => { card.text = t.replace(/\n+$/, ''); if (!card.text.trim()) card.text = ''; });
+}
+function editTodoTitle(card) {
+  const el = getEl(card.id); if (!el) return;
+  const t = el.querySelector('.todo-title');
+  pushHistory();
+  el.classList.add('editing');
+  setEditable(t, true);
+  t.focus(); placeCaretEnd(t);
+}
+function commitTodoTitle(card) {
+  const el = getEl(card.id); if (!el) return;
+  const t = el.querySelector('.todo-title');
+  card.title = t.innerText.replace(/\n/g, ' ').trim();
+  el.classList.remove('editing');
+  setEditable(t, false);
+  t.textContent = card.title;
+  measureSoon(); saveNow();
+}
+function makeItemEditable(card, item) {
+  const el = getEl(card.id); if (!el) return;
+  const span = el.querySelector('.ti[data-item="' + item.id + '"] .ti-text');
+  if (!span) return;
+  pushHistory();
+  setEditable(span, true);
+  span.focus(); placeCaretEnd(span);
+}
+function commitItem(card, item, span) {
+  item.text = span.innerText.replace(/\n/g, ' ');
+  setEditable(span, false);
+  span.textContent = item.text;
+  measureSoon(); saveNow();
+}
+function addItem(card, focusNew) {
+  pushHistory();
+  const it = { id: uid(), text: '', done: false };
+  card.items.push(it);
+  renderTodoItems(card);
+  saveNow();
+  if (focusNew) makeItemEditable(card, it);
+}
+function removeItem(card, itemId) {
+  pushHistory();
+  card.items = card.items.filter(i => i.id !== itemId);
+  renderTodoItems(card);
+  saveNow();
+}
+
+/* ================= Стрелки ================= */
+function edgePoint(r, tx, ty) {
+  const cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+  const dx = tx - cx, dy = ty - cy;
+  const len = Math.hypot(dx, dy) || 1;
+  const t = Math.min(
+    Math.abs(dx) > 1e-6 ? (r.w / 2 + 5) / Math.abs(dx) : 1e9,
+    Math.abs(dy) > 1e-6 ? (r.h / 2 + 5) / Math.abs(dy) : 1e9
+  );
+  return { x: cx + dx * t, y: cy + dy * t, ux: dx / len, uy: dy / len };
+}
+function linkGeometry(l) {
+  const a = getCard(l.from), b = getCard(l.to);
+  if (!a || !b) return null;
+  const ra = rectOf(a), rb = rectOf(b);
+  const p1 = edgePoint(ra, rb.x + rb.w / 2, rb.y + rb.h / 2);
+  const p2 = edgePoint(rb, ra.x + ra.w / 2, ra.y + ra.h / 2);
+  const d = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+  const bend = clamp(d * 0.4, 30, 170);
+  const c1x = p1.x + p1.ux * bend, c1y = p1.y + p1.uy * bend;
+  const c2x = p2.x + p2.ux * bend, c2y = p2.y + p2.uy * bend;
+  const mx = (p1.x + 3 * c1x + 3 * c2x + p2.x) / 8;
+  const my = (p1.y + 3 * c1y + 3 * c2y + p2.y) / 8;
+  return {
+    d: 'M' + p1.x.toFixed(1) + ' ' + p1.y.toFixed(1) +
+       ' C ' + c1x.toFixed(1) + ' ' + c1y.toFixed(1) + ', ' + c2x.toFixed(1) + ' ' + c2y.toFixed(1) +
+       ', ' + p2.x.toFixed(1) + ' ' + p2.y.toFixed(1),
+    mx, my
+  };
+}
+function syncLinks() {
+  const alive = new Set(state.links.map(l => l.id));
+  for (const [id, g] of linkEls) if (!alive.has(id)) { g.remove(); linkEls.delete(id); }
+  for (const l of state.links) {
+    if (linkEls.has(l.id)) continue;
+    const g = document.createElementNS(NS, 'g');
+    g.setAttribute('class', 'link');
+    g.dataset.id = l.id;
+    const hit = document.createElementNS(NS, 'path'); hit.setAttribute('class', 'link-hit');
+    const line = document.createElementNS(NS, 'path'); line.setAttribute('class', 'link-line'); line.setAttribute('marker-end', 'url(#mInk)');
+    const lab = document.createElementNS(NS, 'text'); lab.setAttribute('class', 'link-lab');
+    g.append(hit, line, lab);
+    linksG.appendChild(g);
+    linkEls.set(l.id, g);
+  }
+}
+function layoutLinks() {
+  for (const l of state.links) {
+    const g = linkEls.get(l.id); if (!g) continue;
+    const geo = linkGeometry(l); if (!geo) continue;
+    g.children[0].setAttribute('d', geo.d);
+    g.children[1].setAttribute('d', geo.d);
+    g.children[1].setAttribute('stroke-dasharray', l.dash ? '8 8' : 'none');
+    const lab = g.children[2];
+    lab.setAttribute('x', geo.mx); lab.setAttribute('y', geo.my - 8);
+    lab.textContent = l.label || '';
+    lab.style.display = l.label ? '' : 'none';
+  }
+}
+let layoutRaf = 0;
+function scheduleLayout() {
+  if (layoutRaf) return;
+  layoutRaf = requestAnimationFrame(() => { layoutRaf = 0; layoutLinks(); });
+}
+let measureRaf = 0;
+function measureSoon() {
+  if (measureRaf) return;
+  measureRaf = requestAnimationFrame(() => {
+    measureRaf = 0;
+    for (const c of state.cards) { const el = getEl(c.id); if (el) cardH.set(c.id, el.offsetHeight); }
+    layoutLinks();
+  });
+}
+function createLink(from, to) {
+  pushHistory();
+  const l = { id: uid(), from, to, label: '', dash: false };
+  state.links.push(l);
+  syncLinks(); layoutLinks();
+  selectLink(l.id);
+  saveNow();
+}
+function deleteLink(id) {
+  pushHistory();
+  state.links = state.links.filter(l => l.id !== id);
+  syncLinks();
+  if (ui.sel && ui.sel.id === id) deselect();
+  saveNow();
+}
+function hitTestCard(wx, wy) {
+  for (let i = state.cards.length - 1; i >= 0; i--) {
+    const c = state.cards[i], r = rectOf(c);
+    if (wx >= r.x - 3 && wx <= r.x + r.w + 3 && wy >= r.y - 3 && wy <= r.y + r.h + 3) return c;
+  }
+  return null;
+}
+
+/* ================= Выделение и панель свойств ================= */
+function clearSelVisual() {
+  if (!ui.sel) return;
+  if (ui.sel.kind === 'card') { const el = getEl(ui.sel.id); if (el) el.classList.remove('selected'); }
+  else { const g = linkEls.get(ui.sel.id); if (g) { g.classList.remove('selected'); g.children[1].setAttribute('marker-end', 'url(#mInk)'); } }
+}
+function selectCard(id) {
+  clearSelVisual();
+  ui.sel = { kind: 'card', id };
+  const el = getEl(id); if (el) el.classList.add('selected');
+  renderProps();
+}
+function selectLink(id) {
+  clearSelVisual();
+  ui.sel = { kind: 'link', id };
+  const g = linkEls.get(id);
+  if (g) { g.classList.add('selected'); g.children[1].setAttribute('marker-end', 'url(#mAcc)'); }
+  renderProps();
+}
+function deselect() { clearSelVisual(); ui.sel = null; renderProps(); }
+
+function renderProps() {
+  if (!ui.sel || ui.pendingConnect) { propsEl.hidden = true; return; }
+  const swatchHtml = (pal, cur) => '<div class="swatches">' + pal.map(p =>
+    '<button class="swatch ' + (p.id === cur ? 'active' : '') + '" data-color="' + p.id + '" style="background:' + p.c + '" title="Цвет"></button>').join('') + '</div>';
+  let html = '';
+  if (ui.sel.kind === 'card') {
+    const c = getCard(ui.sel.id); if (!c) { propsEl.hidden = true; return; }
+    const names = { note: 'Стикер', todo: 'Список дел', text: 'Просто текст', image: 'Фото' };
+    html += '<div class="props-head">' + (names[c.type] || '') + '</div>';
+    if (c.type === 'note' || c.type === 'todo') html += swatchHtml(PALETTE, c.color);
+    else if (c.type === 'text') html += swatchHtml(TEXT_COLORS, c.color);
+    html += '<div class="props-actions">';
+    if (c.type === 'image') {
+      html += '<button class="pbtn" data-act="replace" title="Заменить фото"><svg class="ic"><use href="#i-image"/></svg><span>Заменить</span></button>';
+    } else {
+      html += '<button class="pbtn" data-act="edit" title="Редактировать текст"><svg class="ic"><use href="#i-pencil"/></svg><span>Текст</span></button>';
+    }
+    html += '<button class="pbtn" data-act="dup" title="Дублировать (Ctrl+D)"><svg class="ic"><use href="#i-copy"/></svg><span>Копия</span></button>' +
+      '<button class="pbtn" data-act="link" title="Соединить стрелкой"><svg class="ic"><use href="#i-connect"/></svg><span>Стрелка</span></button>' +
+      '<button class="pbtn danger" data-act="del" title="Удалить (Del)"><svg class="ic"><use href="#i-trash"/></svg><span>Удалить</span></button>' +
+      '</div>';
+  } else {
+    const l = state.links.find(x => x.id === ui.sel.id); if (!l) { propsEl.hidden = true; return; }
+    html += '<div class="props-head">Стрелка</div>' +
+      '<input id="linkLabel" placeholder="Подпись стрелки" maxlength="80" value="' + esc(l.label) + '">' +
+      '<div class="props-actions">' +
+      '<button class="pbtn ' + (l.dash ? 'on' : '') + '" data-act="dash" title="Пунктир"><svg class="ic"><use href="#i-dash"/></svg><span>Пунктир</span></button>' +
+      '<button class="pbtn danger" data-act="del" title="Удалить (Del)"><svg class="ic"><use href="#i-trash"/></svg><span>Удалить</span></button>' +
+      '</div>';
+  }
+  propsEl.innerHTML = html;
+  propsEl.hidden = false;
+}
+propsEl.addEventListener('click', e => {
+  const sw = e.target.closest('.swatch');
+  if (sw && ui.sel && ui.sel.kind === 'card') {
+    const c = getCard(ui.sel.id);
+    if (!c) return;
+    pushHistory();
+    c.color = sw.dataset.color;
+    const el = getEl(c.id);
+    if (c.type === 'text') el.style.setProperty('--tc', textColorOf(c.color));
+    else el.style.setProperty('--c', colorOf(c.color));
+    renderProps(); saveNow();
+    return;
+  }
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const act = b.dataset.act;
+  if (ui.sel && ui.sel.kind === 'card') {
+    const c = getCard(ui.sel.id); if (!c) return;
+    if (act === 'edit') { if (c.type === 'note') editNote(c); else if (c.type === 'text') editText(c); else editTodoTitle(c); }
+    if (act === 'replace') { ui.replaceTarget = c.id; $('#imgInput').click(); }
+    if (act === 'dup') duplicateCard(c.id);
+    if (act === 'link') setPending(c.id);
+    if (act === 'del') deleteCard(c.id);
+  } else if (ui.sel && ui.sel.kind === 'link') {
+    const l = state.links.find(x => x.id === ui.sel.id); if (!l) return;
+    if (act === 'del') deleteLink(l.id);
+    if (act === 'dash') { l.dash = !l.dash; layoutLinks(); renderProps(); saveNow(); }
+  }
+});
+propsEl.addEventListener('input', e => {
+  if (e.target.id === 'linkLabel' && ui.sel && ui.sel.kind === 'link') {
+    const l = state.links.find(x => x.id === ui.sel.id);
+    if (l) { l.label = e.target.value; layoutLinks(); scheduleSave(); }
+  }
+});
+
+/* ================= Режим «стрелка» ================= */
+function setPending(id) {
+  cancelPending();
+  ui.pendingConnect = id;
+  setTool('connect');
+  const el = getEl(id); if (el) el.classList.add('pending');
+  connectHint.textContent = 'Теперь выберите вторую карточку · Esc — отмена';
+  connectHint.hidden = false;
+  renderProps();
+}
+function cancelPending() {
+  if (ui.pendingConnect) { const el = getEl(ui.pendingConnect); if (el) el.classList.remove('pending'); }
+  ui.pendingConnect = null;
+  connectHint.hidden = true;
+  tmpLine.setAttribute('visibility', 'hidden');
+  if (ui.tool === 'connect') setTool('select');
+  renderProps();
+}
+
+/* ================= Инструменты ================= */
+function setTool(t) {
+  ui.tool = t;
+  viewport.dataset.tool = t;
+  document.querySelectorAll('.tbtn').forEach(b => b.classList.toggle('active', b.dataset.tool === t));
+}
+document.querySelectorAll('.tbtn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const t = btn.dataset.tool;
+    cancelPending();
+    if (t === 'photo') { $('#imgInput').click(); return; }
+    if (t === ui.tool && t !== 'select') setTool('select');
+    else setTool(t);
+    if (t === 'note' || t === 'todo' || t === 'text') {
+      const r = viewport.getBoundingClientRect();
+      const w = screenToWorld(r.left + r.width / 2 + (Math.random() * 80 - 40), r.top + r.height / 2 + (Math.random() * 60 - 30));
+      const off = t === 'note' ? 108 : t === 'text' ? 120 : 128;
+      addCard(makeCard(t, w.x - off, w.y - 40), true);
+      setTool('select');
+    }
+  });
+});
+
+/* ================= Фото ================= */
+function processFile(file) {
+  return new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onerror = rej;
+    fr.onload = () => {
+      const img = new Image();
+      img.onerror = rej;
+      img.onload = () => {
+        const max = 1280;
+        const k = Math.min(1, max / Math.max(img.naturalWidth || 1, img.naturalHeight || 1));
+        const w = Math.max(1, Math.round((img.naturalWidth || 800) * k));
+        const h = Math.max(1, Math.round((img.naturalHeight || 600) * k));
+        const cv = document.createElement('canvas');
+        cv.width = w; cv.height = h;
+        cv.getContext('2d').drawImage(img, 0, 0, w, h);
+        let src;
+        try { src = file.type === 'image/png' ? cv.toDataURL('image/png') : cv.toDataURL('image/jpeg', 0.82); }
+        catch (e) { src = fr.result; }
+        res({ src: src, aspect: h / w });
+      };
+      img.src = fr.result;
+    };
+    fr.readAsDataURL(file);
+  });
+}
+async function importImages(files) {
+  const list = [...files].filter(f => f.type && f.type.indexOf('image/') === 0);
+  if (!list.length) return;
+  const r = viewport.getBoundingClientRect();
+  let n = 0;
+  for (const f of list) {
+    try {
+      const p = await processFile(f);
+      const w = screenToWorld(r.left + r.width / 2 + (n % 5) * 36 - 60, r.top + r.height / 2 + (n % 5) * 32 - 60);
+      const card = makeCard('image', Math.round(w.x - 130), Math.round(w.y - 90));
+      card.src = p.src; card.aspect = p.aspect;
+      addCard(card, false);
+      n++;
+    } catch (e) { toast('Не удалось прочитать изображение'); }
+  }
+  if (n) toast(n === 1 ? 'Фото прикреплено' : ('Фото прикреплены: ' + n));
+}
+ $('#imgInput').addEventListener('change', e => {
+  const files = [...e.target.files];
+  e.target.value = '';
+  if (!files.length) return;
+  if (ui.replaceTarget) {
+    const c = getCard(ui.replaceTarget);
+    ui.replaceTarget = null;
+    if (c && c.type === 'image') {
+      processFile(files[0]).then(p => {
+        pushHistory();
+        c.src = p.src; c.aspect = p.aspect;
+        const cardEl = getEl(c.id);
+        if (cardEl) {
+          const q = cardEl.querySelector('img');
+          if (q) q.src = p.src;
+        }
+        scheduleLayout(); saveNow();
+        toast('Фото заменено');
+      }).catch(() => toast('Не удалось прочитать файл'));
+    }
+    return;
+  }
+  importImages(files);
+});
+viewport.addEventListener('dragover', e => e.preventDefault());
+viewport.addEventListener('drop', e => {
+  e.preventDefault();
+  if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) importImages(e.dataTransfer.files);
+});
+window.addEventListener('paste', e => {
+  if (typing()) return;
+  const files = e.clipboardData && e.clipboardData.files;
+  if (files && [...files].some(f => f.type && f.type.indexOf('image/') === 0)) {
+    e.preventDefault();
+    importImages(files);
+  }
+});
+
+/* ================= Жесты указателя ================= */
+const pointers = new Map();
+let gesture = { type: 'none' };
+let pinch0 = null;
+
+viewport.addEventListener('pointerdown', e => {
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  closeMenu(); closeBoardPanel();
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+  if (pointers.size === 2) { // щипок
+    gesture = { type: 'pinch' };
+    tmpLine.setAttribute('visibility', 'hidden');
+    document.querySelectorAll('.conn-target').forEach(el => el.classList.remove('conn-target'));
+    blurActive();
+    ensureView();
+    const pts = [...pointers.values()];
+    pinch0 = {
+      d: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) || 1,
+      cx: (pts[0].x + pts[1].x) / 2, cy: (pts[0].y + pts[1].y) / 2,
+      view: { x: state.view.x, y: state.view.y, s: state.view.s }
+    };
+    viewport.setPointerCapture(e.pointerId);
+    return;
+  }
+
+  const handle = e.target.closest('.img-handle');
+  if (handle) {
+    const cardEl = handle.closest('.card');
+    const c = getCard(cardEl.dataset.id);
+    if (c) {
+      selectCard(c.id);
+      blurActive();
+      gesture = { type: 'resize', id: c.id, w0: c.w, sx: e.clientX, sy: e.clientY };
+      viewport.setPointerCapture(e.pointerId);
+    }
+    return;
+  }
+
+  const cardEl = e.target.closest('.card');
+  const linkG = e.target.closest('.link');
+  const nodrag = e.target.closest('[data-nodrag]');
+  viewport.setPointerCapture(e.pointerId);
+
+  if (ui.tool === 'eraser') {
+    if (cardEl) deleteCard(cardEl.dataset.id);
+    else if (linkG) deleteLink(linkG.dataset.id);
+    gesture = { type: 'none' };
+    return;
+  }
+  if (nodrag) { gesture = { type: 'none' }; return; } // кнопки внутри карточек
+
+  if (ui.tool === 'connect') {
+    if (cardEl) {
+      const id = cardEl.dataset.id;
+      gesture = { type: 'connect', from: id, sx: e.clientX, sy: e.clientY, moved: false };
+    } else {
+      gesture = { type: 'pan', sx: e.clientX, sy: e.clientY, ox: state.view.x, oy: state.view.y, moved: false, bg: true };
+    }
+    return;
+  }
+  // инструмент «выбор»
+  if (cardEl) {
+    const id = cardEl.dataset.id;
+    const c = getCard(id);
+    selectCard(id);
+    gesture = { type: 'card', id: id, c: c, ox: c.x, oy: c.y, sx: e.clientX, sy: e.clientY, moved: false, target: e.target, histDone: false };
+  } else if (linkG) {
+    gesture = { type: 'link', id: linkG.dataset.id, sx: e.clientX, sy: e.clientY, moved: false };
+  } else {
+    gesture = { type: 'pan', sx: e.clientX, sy: e.clientY, ox: state.view.x, oy: state.view.y, moved: false, bg: true };
+  }
+});
+
+viewport.addEventListener('pointermove', e => {
+  if (!pointers.has(e.pointerId)) return;
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+  if (gesture.type === 'pinch' && pointers.size >= 2) {
+    ensureView();
+    const pts = [...pointers.values()];
+    const d = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) || 1;
+    const cx = (pts[0].x + pts[1].x) / 2, cy = (pts[0].y + pts[1].y) / 2;
+    const r = viewport.getBoundingClientRect();
+    const s2 = clamp(pinch0.view.s * d / pinch0.d, 0.15, 3);
+    const wx = (pinch0.cx - r.left - pinch0.view.x) / pinch0.view.s;
+    const wy = (pinch0.cy - r.top - pinch0.view.y) / pinch0.view.s;
+    state.view.s = s2;
+    state.view.x = (cx - r.left) - wx * s2;
+    state.view.y = (cy - r.top) - wy * s2;
+    applyView();
+    return;
+  }
+
+  if (gesture.type === 'pan') {
+    if (!gesture.moved && Math.hypot(e.clientX - gesture.sx, e.clientY - gesture.sy) > 4) {
+      gesture.moved = true; viewport.classList.add('panning');
+    }
+    if (gesture.moved) {
+      state.view.x = gesture.ox + e.clientX - gesture.sx;
+      state.view.y = gesture.oy + e.clientY - gesture.sy;
+      applyView();
+    }
+  } else if (gesture.type === 'card') {
+    const dist = Math.hypot(e.clientX - gesture.sx, e.clientY - gesture.sy);
+    if (!gesture.moved && dist > 4) {
+      gesture.moved = true;
+      if (!gesture.histDone) { pushHistory(); gesture.histDone = true; }
+      getEl(gesture.id).classList.add('lift');
+      blurActive();
+      window.getSelection().removeAllRanges();
+    }
+    if (gesture.moved) {
+      e.preventDefault();
+      gesture.c.x = gesture.ox + (e.clientX - gesture.sx) / state.view.s;
+      gesture.c.y = gesture.oy + (e.clientY - gesture.sy) / state.view.s;
+      const el = getEl(gesture.id);
+      el.style.left = gesture.c.x + 'px';
+      el.style.top = gesture.c.y + 'px';
+      scheduleLayout();
+    }
+  } else if (gesture.type === 'resize') {
+    const c = getCard(gesture.id); if (!c) return;
+    const dx = (e.clientX - gesture.sx) / state.view.s;
+    const dy = (e.clientY - gesture.sy) / state.view.s;
+    c.w = Math.round(clamp(gesture.w0 + (dx + dy) / 2, 90, 1400));
+    const el = getEl(c.id);
+    if (el) el.style.width = c.w + 'px';
+    scheduleLayout();
+  } else if (gesture.type === 'connect') {
+    if (!gesture.moved && Math.hypot(e.clientX - gesture.sx, e.clientY - gesture.sy) > 5) {
+      gesture.moved = true;
+      connectHint.textContent = 'Отпустите над второй карточкой';
+      connectHint.hidden = false;
+    }
+    if (gesture.moved) {
+      const from = getCard(gesture.from);
+      const w = screenToWorld(e.clientX, e.clientY);
+      const r = rectOf(from);
+      const p1 = edgePoint(r, w.x, w.y);
+      tmpLine.setAttribute('d', 'M' + p1.x + ' ' + p1.y + ' L' + w.x + ' ' + w.y);
+      tmpLine.setAttribute('visibility', 'visible');
+      const over = hitTestCard(w.x, w.y);
+      document.querySelectorAll('.conn-target').forEach(el => el.classList.remove('conn-target'));
+      if (over && over.id !== gesture.from) getEl(over.id).classList.add('conn-target');
+    }
+  } else if (gesture.type === 'link') {
+    if (Math.hypot(e.clientX - gesture.sx, e.clientY - gesture.sy) > 5) gesture.moved = true;
+  }
+});
+
+function endPointer(e) {
+  pointers.delete(e.pointerId);
+  viewport.classList.remove('panning');
+
+  if (gesture.type === 'pinch') {
+    if (pointers.size < 2) { gesture = { type: 'none' }; pinch0 = null; scheduleSave(); }
+    return;
+  }
+  if (e.type === 'pointercancel') {
+    document.querySelectorAll('.card.lift').forEach(el => el.classList.remove('lift'));
+    document.querySelectorAll('.conn-target').forEach(el => el.classList.remove('conn-target'));
+    tmpLine.setAttribute('visibility', 'hidden');
+    gesture = { type: 'none' };
+    return;
+  }
+
+  const tap = g => !g.moved;
+
+  if (gesture.type === 'resize') {
+    scheduleSave();
+  } else if (gesture.type === 'pan' && tap(gesture) && gesture.bg) {
+    if (ui.pendingConnect) cancelPending(); else deselect();
+  } else if (gesture.type === 'card') {
+    const el = getEl(gesture.id);
+    if (el) el.classList.remove('lift');
+    if (gesture.moved) { scheduleSave(); }
+    else if (gesture.target.closest('.ti-text')) {
+      const row = gesture.target.closest('.ti');
+      const c = gesture.c;
+      const item = c.items.find(i => i.id === row.dataset.item);
+      if (item) makeItemEditable(c, item);
+    }
+  } else if (gesture.type === 'link') {
+    if (tap(gesture)) selectLink(gesture.id);
+  } else if (gesture.type === 'connect') {
+    document.querySelectorAll('.conn-target').forEach(el => el.classList.remove('conn-target'));
+    tmpLine.setAttribute('visibility', 'hidden');
+    if (tap(gesture)) {
+      if (ui.pendingConnect === gesture.from) cancelPending();
+      else if (ui.pendingConnect && ui.pendingConnect !== gesture.from) {
+        createLink(ui.pendingConnect, gesture.from);
+        cancelPending();
+      } else setPending(gesture.from);
+    } else {
+      const w = screenToWorld(e.clientX, e.clientY);
+      const over = hitTestCard(w.x, w.y);
+      if (over && over.id !== gesture.from) { createLink(gesture.from, over.id); cancelPending(); }
+      else cancelPending();
+    }
+  }
+  gesture = { type: 'none' };
+}
+viewport.addEventListener('pointerup', endPointer);
+viewport.addEventListener('pointercancel', endPointer);
+viewport.addEventListener('contextmenu', e => e.preventDefault());
+document.addEventListener('gesturestart', e => e.preventDefault());
+
+/* двойной клик: редактирование / создание стикера */
+viewport.addEventListener('dblclick', e => {
+  const cardEl = e.target.closest('.card');
+  if (cardEl) {
+    const c = getCard(cardEl.dataset.id); if (!c) return;
+    if (c.type === 'note') editNote(c);
+    else if (c.type === 'text') editText(c);
+    else if (c.type === 'image') { ui.replaceTarget = c.id; $('#imgInput').click(); }
+    else if (e.target.closest('.todo-title') || e.target.closest('.todo-head')) editTodoTitle(c);
+    else if (e.target.closest('.ti-text')) {
+      const item = c.items.find(i => i.id === e.target.closest('.ti').dataset.item);
+      if (item) makeItemEditable(c, item);
+    }
+    return;
+  }
+  if (ui.tool === 'select' && !e.target.closest('.link')) {
+    const w = screenToWorld(e.clientX, e.clientY);
+    addCard(makeCard('note', w.x - 108, w.y - 30), true);
+  }
+});
+
+/* события внутри карточек: кнопки, чекбоксы, фокус */
+cardsG.addEventListener('click', e => {
+  const cardEl = e.target.closest('.card'); if (!cardEl) return;
+  const card = getCard(cardEl.dataset.id); if (!card) return;
+  if (e.target.closest('.card-edit')) {
+    if (card.type === 'image') { ui.replaceTarget = card.id; $('#imgInput').click(); }
+    else if (card.type === 'note') editNote(card);
+    else if (card.type === 'text') editText(card);
+    else editTodoTitle(card);
+    return;
+  }
+  if (e.target.closest('.todo-add')) { addItem(card, true); return; }
+  const check = e.target.closest('.ti-check');
+  if (check) {
+    const row = check.closest('.ti');
+    const item = card.items.find(i => i.id === row.dataset.item);
+    if (item) { pushHistory(); item.done = !item.done; row.classList.toggle('done', item.done); updateTodoMeta(card); saveNow(); }
+    return;
+  }
+  const del = e.target.closest('.ti-del');
+  if (del) { removeItem(card, del.closest('.ti').dataset.item); return; }
+});
+cardsG.addEventListener('focusout', e => {
+  const t = e.target;
+  if (!t.isContentEditable) return;
+  const cardEl = t.closest('.card'); if (!cardEl) return;
+  const card = getCard(cardEl.dataset.id); if (!card) return;
+  if (t.classList.contains('note-content')) commitNote(card);
+  else if (t.classList.contains('text-content')) commitText(card);
+  else if (t.classList.contains('todo-title')) commitTodoTitle(card);
+  else if (t.classList.contains('ti-text')) {
+    const item = card.items.find(i => i.id === t.closest('.ti').dataset.item);
+    if (item) commitItem(card, item, t);
+  }
+});
+cardsG.addEventListener('keydown', e => {
+  const t = e.target;
+  if (!t.isContentEditable) return;
+  if (e.key === 'Escape') { e.preventDefault(); t.blur(); return; }
+  const cardEl = t.closest('.card');
+  const card = cardEl && getCard(cardEl.dataset.id);
+  if (!card) return;
+  if (t.classList.contains('todo-title') && e.key === 'Enter') { e.preventDefault(); t.blur(); }
+  if (t.classList.contains('ti-text') && e.key === 'Enter') {
+    e.preventDefault();
+    const pos = card.items.findIndex(i => i.id === t.closest('.ti').dataset.item);
+    t.blur();
+    if (pos >= 0) {
+      pushHistory();
+      const it = { id: uid(), text: '', done: false };
+      card.items.splice(pos + 1, 0, it);
+      renderTodoItems(card);
+      saveNow();
+      makeItemEditable(card, it);
+    }
+  }
+  if (t.classList.contains('ti-text') && e.key === 'Backspace' && t.textContent === '' && card.items.length > 1) {
+    e.preventDefault();
+    const pos = card.items.findIndex(i => i.id === t.closest('.ti').dataset.item);
+    removeItem(card, t.closest('.ti').dataset.item);
+    const prev = card.items[Math.max(0, pos - 1)];
+    if (prev) makeItemEditable(card, prev);
+  }
+});
+
+/* ================= Колесо и клавиатура ================= */
+viewport.addEventListener('wheel', e => {
+  e.preventDefault();
+  const r = viewport.getBoundingClientRect();
+  const k = e.deltaMode === 1 ? 16 : 1;
+  if (e.ctrlKey) {
+    zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-e.deltaY * k * 0.012));
+  } else {
+    ensureView();
+    state.view.x -= e.deltaX * k;
+    state.view.y -= e.deltaY * k;
+    applyView(); scheduleSave();
+  }
+}, { passive: false });
+
+const typing = () => {
+  const ae = document.activeElement;
+  return ae && (ae.isContentEditable || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA');
+};
+window.addEventListener('keydown', e => {
+  if (e.code === 'Space' && !typing()) { viewport.classList.add('spacepan'); e.preventDefault(); return; }
+  if (e.key === 'Escape') {
+    const ae = document.activeElement;
+    if (ae && ae.isContentEditable) { ae.blur(); return; }
+    if (!$('#scrim').hidden) { closeModal(); return; }
+    closeMenu(); closeBoardPanel();
+    if (ui.pendingConnect) cancelPending(); else deselect();
+    return;
+  }
+  if (typing()) return;
+  const mod = e.ctrlKey || e.metaKey;
+  if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
+  if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
+  if (mod && e.key.toLowerCase() === 'd') {
+    e.preventDefault();
+    if (ui.sel && ui.sel.kind === 'card') duplicateCard(ui.sel.id);
+    return;
+  }
+  if (e.key === 'Delete' || e.key === 'Backspace') {
+    if (!ui.sel) return;
+    e.preventDefault();
+    if (ui.sel.kind === 'card') deleteCard(ui.sel.id); else deleteLink(ui.sel.id);
+    return;
+  }
+  if (e.key === '=' || e.key === '+') { const r = viewport.getBoundingClientRect(); zoomAt(r.width / 2, r.height / 2, 1.25); }
+  if (e.key === '-') { const r = viewport.getBoundingClientRect(); zoomAt(r.width / 2, r.height / 2, 0.8); }
+  if (e.key === '0') { const r = viewport.getBoundingClientRect(); zoomAt(r.width / 2, r.height / 2, 1 / state.view.s); }
+});
+window.addEventListener('keyup', e => {
+  if (e.code === 'Space') viewport.classList.remove('spacepan');
+});
+
+/* ================= Зум-кнопки ================= */
+ $('#zoomIn').addEventListener('click', () => { const r = viewport.getBoundingClientRect(); zoomAt(r.width / 2, r.height / 2, 1.25); });
+ $('#zoomOut').addEventListener('click', () => { const r = viewport.getBoundingClientRect(); zoomAt(r.width / 2, r.height / 2, 0.8); });
+ $('#zoomPct').addEventListener('click', () => { const r = viewport.getBoundingClientRect(); zoomAt(r.width / 2, r.height / 2, 1 / state.view.s); });
+ $('#zoomFit').addEventListener('click', fitAll);
+
+/* ================= Доски: панель, создание, переключение ================= */
+const boardPanel = $('#boardPanel'), boardList = $('#boardList');
+function renderBoardPanel() {
+  const sorted = [...idx].sort((a, b) => (b.ts || 0) - (a.ts || 0));
+  boardList.innerHTML = '';
+  sorted.forEach((b, i) => {
+    const row = document.createElement('div');
+    row.className = 'bp-row' + (b.id === boardId ? ' on' : '');
+    row.dataset.id = b.id;
+    const d = new Date(b.ts || Date.now());
+    row.innerHTML =
+      '<span class="bp-dot" style="background:' + PALETTE[i % PALETTE.length].c + '"></span>' +
+      '<span class="bp-main">' +
+        '<span class="bp-name">' + esc(b.name || 'Без названия') + '</span>' +
+        '<span class="bp-date">' + (b.id === boardId ? 'открыта' : 'изменена ' + d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })) + '</span>' +
+      '</span>' +
+      (b.id === boardId ? '<svg class="ic bp-check"><use href="#i-check"/></svg>' : '') +
+      '<button class="bp-del" data-del title="Удалить доску"><svg class="ic"><use href="#i-trash"/></svg></button>';
+    boardList.appendChild(row);
+  });
+}
+function openBoardPanel() { renderBoardPanel(); boardPanel.hidden = false; }
+function closeBoardPanel() { boardPanel.hidden = true; }
+ $('#boardsBtn').addEventListener('click', e => {
+  e.stopPropagation();
+  if (boardPanel.hidden) openBoardPanel(); else closeBoardPanel();
+});
+boardPanel.addEventListener('click', e => {
+  const del = e.target.closest('[data-del]');
+  if (del) {
+    e.stopPropagation();
+    const row = del.closest('.bp-row');
+    if (row) askDeleteBoard(row.dataset.id);
+    return;
+  }
+  const row = e.target.closest('.bp-row');
+  if (row && row.dataset.id && row.dataset.id !== boardId) switchBoard(row.dataset.id);
+  closeBoardPanel();
+});
+document.addEventListener('pointerdown', e => {
+  if (!boardPanel.hidden && !e.target.closest('#boardPanel') && !e.target.closest('#boardsBtn')) closeBoardPanel();
+});
+
+function loadCurrent() {
+  let d = null;
+  try { const raw = localStorage.getItem(bkey(boardId)); if (raw) d = JSON.parse(raw); } catch (e) {}
+  const clean = sanitizeData(d && Array.isArray(d.cards) ? d : { cards: [], links: [] });
+  state.name = d && typeof d.name === 'string' ? d.name : 'Без названия';
+  state.cards = clean.cards; state.links = clean.links;
+  if (d && d.view && typeof d.view.x === 'number' && typeof d.view.s === 'number') {
+    state.view = { x: +d.view.x, y: +d.view.y, s: clamp(+d.view.s || 1, 0.15, 3) };
+    pendingFit = false;
+  } else {
+    state.view = { x: 0, y: 0, s: 1 };
+    pendingFit = true;
+  }
+  $('#boardName').value = state.name;
+}
+function switchBoard(id) {
+  blurActive();
+  saveNow();
+  boardId = id; setActive();
+  loadCurrent();
+  resetHistory();
+  deselect(); cancelPending();
+  rebuildAll(); renderProps(); updateEmptyHint();
+  applyOrFit();
+  renderBoardPanel();
+}
+function createBoard(name) {
+  blurActive();
+  saveNow();
+  const id = uid();
+  idx.push({ id: id, name: name, ts: Date.now() }); saveIndex();
+  boardId = id; setActive();
+  state.name = name; state.cards = []; state.links = [];
+  const r = viewport.getBoundingClientRect();
+  state.view = { x: r.width / 2, y: r.height / 2, s: 1 };
+  pendingFit = false;
+  $('#boardName').value = name;
+  saveNow();
+  resetHistory();
+  deselect(); cancelPending();
+  rebuildAll(); renderProps(); updateEmptyHint(); applyView();
+  toast('Доска «' + name + '» создана');
+}
+function askNewBoard() {
+  closeBoardPanel();
+  openModal({
+    title: 'Новая доска',
+    bodyHtml: '<input id="modalInput" class="modal-input" placeholder="Например: Ремонт на кухне" maxlength="60">',
+    okText: 'Создать',
+    onOk() {
+      const i = $('#modalInput');
+      const val = i ? i.value.trim() : '';
+      createBoard(val || ('Доска ' + (idx.length + 1)));
+    }
+  });
+  requestAnimationFrame(() => { const i = $('#modalInput'); if (i) i.focus(); });
+}
+ $('#bpNew').addEventListener('click', askNewBoard);
+function askDeleteBoard(id) {
+  const b = idx.find(x => x.id === id); if (!b) return;
+  openModal({
+    title: 'Удалить доску?',
+    bodyHtml: 'Доска «' + esc(b.name || 'Без названия') + '» и всё её содержимое будут удалены навсегда.',
+    okText: 'Удалить', danger: true,
+    onOk() { deleteBoard(id); }
+  });
+}
+function deleteBoard(id) {
+  try { localStorage.removeItem(bkey(id)); } catch (e) {}
+  idx = idx.filter(b => b.id !== id); saveIndex();
+  if (id === boardId) {
+    if (idx.length) {
+      switchBoard([...idx].sort((a, b) => (b.ts || 0) - (a.ts || 0))[0].id);
+    } else {
+      createBoard('Новая доска');
+    }
+  } else {
+    renderBoardPanel();
+  }
+  toast('Доска удалена');
+}
+
+/* ================= Хедер: имя, экспорт, импорт, меню ================= */
+ $('#boardName').addEventListener('input', e => { state.name = e.target.value; scheduleSave(); });
+
+ $('#btnUndo').addEventListener('click', undo);
+ $('#btnRedo').addEventListener('click', redo);
+
+function downloadBoard() {
+  const data = { app: 'scotch', version: 1, name: state.name, cards: state.cards, links: state.links, view: state.view };
+  const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (state.name.trim() || 'доска').replace(/[^\wа-яёА-ЯЁ\- ]+/g, '').trim().replace(/\s+/g, '-').toLowerCase() + '.json';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+  toast('Файл доски сохранён');
+}
+ $('#btnExport').addEventListener('click', downloadBoard);
+ $('#mExport').addEventListener('click', () => { closeMenu(); downloadBoard(); });
+
+ $('#fileInput').addEventListener('change', e => {
+  const f = e.target.files[0];
+  e.target.value = '';
+  if (!f) return;
+  const rd = new FileReader();
+  rd.onload = () => {
+    try {
+      const d = JSON.parse(rd.result);
+      if (!Array.isArray(d.cards)) throw 0;
+      const clean = sanitizeData(d);
+      if (!clean.cards.length) throw 0;
+      blurActive();
+      saveNow();
+      const id = uid();
+      const name = (typeof d.name === 'string' && d.name.trim()) || 'Импортированная доска';
+      idx.push({ id: id, name: name, ts: Date.now() }); saveIndex();
+      boardId = id; setActive();
+      state.name = name;
+      state.cards = clean.cards; state.links = clean.links;
+      if (d.view && typeof d.view.x === 'number' && typeof d.view.s === 'number') {
+        state.view = { x: +d.view.x, y: +d.view.y, s: clamp(+d.view.s || 1, 0.15, 3) };
+        pendingFit = false;
+      } else {
+        state.view = { x: 0, y: 0, s: 1 };
+        pendingFit = true;
+      }
+      $('#boardName').value = name;
+      saveNow();
+      resetHistory(); deselect();
+      rebuildAll(); renderProps(); updateEmptyHint();
+      applyOrFit();
+      toast('Доска загружена как «' + name + '»');
+    } catch (err) { toast('Не удалось прочитать файл'); }
+  };
+  rd.readAsText(f);
+});
+ $('#btnImport').addEventListener('click', () => $('#fileInput').click());
+ $('#mImport').addEventListener('click', () => { closeMenu(); $('#fileInput').click(); });
+
+/* меню-кебаб */
+function closeMenu() { $('#menu').hidden = true; }
+ $('#btnMenu').addEventListener('click', e => { e.stopPropagation(); $('#menu').hidden = !$('#menu').hidden; });
+document.addEventListener('pointerdown', e => {
+  if (!$('#menu').hidden && !e.target.closest('#menu') && !e.target.closest('#btnMenu')) closeMenu();
+});
+
+/* ================= Модальное окно ================= */
+let modalOkCb = null;
+function openModal(opts) {
+  $('#modalTitle').textContent = opts.title;
+  $('#modalBody').innerHTML = opts.bodyHtml;
+  const ok = $('#modalOk');
+  ok.textContent = opts.okText || 'Ок';
+  ok.className = 'mbtn ' + (opts.danger ? 'red' : 'solid');
+  modalOkCb = opts.onOk || null;
+  $('#scrim').hidden = false;
+}
+function closeModal() { $('#scrim').hidden = true; modalOkCb = null; }
+ $('#modalOk').addEventListener('click', () => { const cb = modalOkCb; closeModal(); if (cb) cb(); });
+ $('#modalCancel').addEventListener('click', closeModal);
+ $('#scrim').addEventListener('click', e => { if (e.target === $('#scrim')) closeModal(); });
+ $('#modalBody').addEventListener('keydown', e => {
+  if (e.target.id === 'modalInput' && e.key === 'Enter') { e.preventDefault(); $('#modalOk').click(); }
+});
+
+function askClear() {
+  openModal({
+    title: 'Очистить доску?',
+    bodyHtml: 'Все стикеры, фото, списки и стрелки будут удалены с этой доски. Действие можно отменить через Ctrl+Z.',
+    okText: 'Очистить', danger: true,
+    onOk() {
+      pushHistory();
+      state.cards = []; state.links = [];
+      rebuildAll(); renderProps(); updateEmptyHint();
+      saveNow();
+      toast('Доска очищена');
+    }
+  });
+}
+ $('#btnClear').addEventListener('click', askClear);
+ $('#mClear').addEventListener('click', () => { closeMenu(); askClear(); });
+
+const HELP_HTML = '<ul class="help-list">' +
+  '<li><b>Доски</b><span>кнопка «Доски» — создать новую или переключиться</span></li>' +
+  '<li><b>Стикер</b><span>инструмент-стикер или двойной клик по доске</span></li>' +
+  '<li><b>Просто текст</b><span>инструмент «T» — плашка без фона</span></li>' +
+  '<li><b>Фото</b><span>инструмент «фото», бросьте файл на доску или Ctrl+V; уголок меняет размер</span></li>' +
+  '<li><b>Список дел</b><span>тап по пункту — правка; Enter — новый пункт</span></li>' +
+  '<li><b>Стрелка</b><span>потяните от карточки к карточке</span></li>' +
+  '<li><b>Движение</b><span>тяните фон рукой или мышью</span></li>' +
+  '<li><b>Масштаб</b><span>Ctrl + колесо, щипок, кнопки ±</span></li>' +
+  '<li><b>Удаление</b><span>выберите объект и нажмите Del, либо ластик</span></li>' +
+  '<li><b>История</b><span>Ctrl+Z отменить, Ctrl+Shift+Z вернуть</span></li>' +
+  '</ul>';
+function showHelp() {
+  openModal({ title: 'Как пользоваться', bodyHtml: HELP_HTML, okText: 'Понятно' });
+}
+ $('#btnHelp').addEventListener('click', showHelp);
+ $('#mHelp').addEventListener('click', () => { closeMenu(); showHelp(); });
+
+/* ================= Тосты ================= */
+function toast(msg) {
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.innerHTML = '<svg class="ic"><use href="#i-check"/></svg>' + esc(msg);
+  $('#toasts').appendChild(t);
+  requestAnimationFrame(() => t.classList.add('show'));
+  setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 250); }, 2200);
+}
+
+/* ================= Пересборка DOM ================= */
+function rebuildAll() {
+  cardsG.classList.add('noanim');
+  cardsG.innerHTML = '';
+  cardById.clear(); elById.clear(); cardH.clear();
+  for (const c of state.cards) attachCard(c);
+  syncLinks();
+  requestAnimationFrame(() => {
+    for (const c of state.cards) { const el = getEl(c.id); if (el) cardH.set(c.id, el.offsetHeight); }
+    layoutLinks();
+    cardsG.classList.remove('noanim');
+  });
+}
+
+/* ================= Приветственная доска ================= */
+function makeSeedBoard() {
+  const id = uid();
+  const A = uid(), B = uid(), C = uid(), D = uid(), P = uid(), T = uid(), L = uid();
+  const cards = [
+    { id: A, type: 'note', x: -112, y: -96, w: 216, color: 'yellow', tilt: -1.2, text: 'Привет! Это «Скотч» — бесконечная доска для идей, планов и заметок' },
+    { id: B, type: 'note', x: -590, y: -290, w: 216, color: 'mint', tilt: 1.4, text: 'Дважды щёлкни по фону — приклеится новый стикер' },
+    { id: C, type: 'note', x: 300, y: -310, w: 216, color: 'peach', tilt: -0.8, text: 'Меня можно тащить. А ещё соединять стрелками' },
+    { id: D, type: 'note', x: -640, y: 190, w: 216, color: 'lilac', tilt: 0.9, text: 'Тяни фон, чтобы двигаться. Масштаб — щипок или Ctrl + колесо' },
+    { id: P, type: 'image', x: 300, y: 150, w: 260, aspect: 0.75, tilt: 1.1, src: DEMO_PHOTO },
+    { id: T, type: 'text', x: -60, y: 330, w: 240, color: 'ink', tilt: 0, text: 'А ещё здесь живут фото, списки дел и просто текст' },
+    { id: L, type: 'todo', x: 660, y: -50, w: 256, color: 'sky', tilt: 0.6, title: 'Быстрый старт', items: [
+      { id: uid(), text: 'Создать пару стикеров', done: true },
+      { id: uid(), text: 'Прикрепить своё фото', done: false },
+      { id: uid(), text: 'Составить свой список дел', done: false },
+    ]},
+  ];
+  const links = [
+    { id: uid(), from: B, to: A, label: '', dash: false },
+    { id: uid(), from: A, to: C, label: '', dash: false },
+    { id: uid(), from: D, to: A, label: '', dash: false },
+    { id: uid(), from: A, to: L, label: '', dash: false },
+    { id: uid(), from: T, to: L, label: 'поехали', dash: true },
+  ];
+  const name = 'Добро пожаловать';
+  return { id: id, name: name, data: { name: name, cards: cards, links: links, view: null } };
+}
+
+/* ================= Запуск ================= */
+(function init() {
+  try { idx = JSON.parse(localStorage.getItem(IDX) || '[]'); } catch (e) { idx = []; }
+  if (!Array.isArray(idx)) idx = [];
+
+  /* миграция со старой одиночной версии */
+  if (!idx.length) {
+    try {
+      const raw = localStorage.getItem(KEY);
+      if (raw) {
+        const d = JSON.parse(raw);
+        if (Array.isArray(d.cards)) {
+          const clean = sanitizeData(d);
+          if (clean.cards.length) {
+            const id = uid();
+            const name = (typeof d.name === 'string' && d.name) || 'Моя доска';
+            idx = [{ id: id, name: name, ts: Date.now() }]; saveIndex();
+            try { localStorage.setItem(bkey(id), JSON.stringify({ name: name, cards: clean.cards, links: clean.links, view: d.view || null })); } catch (e) {}
+          }
+        }
+        localStorage.removeItem(KEY);
+      }
+    } catch (e) {}
+  }
+
+  let act = null;
+  try { act = localStorage.getItem(ACT); } catch (e) {}
+  if (!idx.some(b => b.id === act)) act = idx.length ? idx[0].id : null;
+
+  if (!act) {
+    const b = makeSeedBoard();
+    idx = [{ id: b.id, name: b.name, ts: Date.now() }]; saveIndex();
+    try { localStorage.setItem(bkey(b.id), JSON.stringify(b.data)); } catch (e) {}
+    boardId = b.id; setActive();
+    state.name = b.name;
+    state.cards = b.data.cards; state.links = b.data.links;
+    state.view = { x: 0, y: 0, s: 1 };
+    pendingFit = true; // после сборки подогнать вид под контент
+    $('#boardName').value = state.name;
+  } else {
+    boardId = act; setActive();
+    loadCurrent();
+  }
+
+  rebuildAll();
+  updateEmptyHint();
+  applyOrFit();
+  resetHistory();
+})();
+</script>
+</body>
+</html>
